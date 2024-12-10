@@ -4,6 +4,8 @@
 
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
+
+#include "TransferJobDTOCreate.h"
 #include "StableEventDTOCreate.h"
 #include "StableEventDTOUpdate.h"
 #include "MainDicomTags.h"
@@ -15,6 +17,7 @@
 #include <chrono>
 
 #include <boost/algorithm/string.hpp>
+
 
 static void GetMainDicomTags(const std::string& resourceId, const Orthanc::ResourceType& resourceType, Json::Value& mainDicomTags)
 {
@@ -161,43 +164,113 @@ static void GetMainDicomTags(const std::string& resourceId, const Orthanc::Resou
 }
 
 
-static void ConstructAndSendMessage(const std::string& appType, const Json::Value& mainDicomTags)
+static void ConstructAndSendMessage(const AppConfiguration& appConfig, const Json::Value& mainDicomTags)
 {
-  std::list<std::shared_ptr<AppConfiguration>> apps;
-  SaolaConfiguration::Instance().GetAppConfiguration(appType, apps);
-
-  for (const auto& app : apps)
+  Json::Value body;
+  for (auto& field : appConfig.fieldMapping_)
   {
-    Json::Value body;
-    for (auto& field : app->fieldMapping_)
+    if (mainDicomTags.isMember(field.second))
     {
-      if (mainDicomTags.isMember(field.second))
-      {
-        body[field.first] = mainDicomTags[field.second];
-      }
+      body[field.first] = mainDicomTags[field.second];
     }
-
-    for (auto& field : app->fieldValues_)
-    {
-      body[field.first] = field.second;
-    }
-
-    std::string bodyString;
-    OrthancPlugins::WriteFastJson(bodyString, body);
-
-    LOG(INFO) << "[ConstructAndSendMessage] Body = " << body.toStyledString();
-    OrthancPlugins::HttpClient client;
-    client.SetUrl(app->url);
-    client.SetTimeout(5);
-    if (!app->authentication.empty())
-    {
-      client.AddHeader("Authentication", app->authentication);
-    }
-    client.SetBody(bodyString);
-    client.Execute();
   }
+  for (auto& field : appConfig.fieldValues_)
+  {
+    body[field.first] = field.second;
+  }
+  std::string bodyString;
+  OrthancPlugins::WriteFastJson(bodyString, body);
+  LOG(INFO) << "[ConstructAndSendMessage] Body = " << body.toStyledString();
+  OrthancPlugins::HttpClient client;
+  client.SetUrl(appConfig.url_);
+  client.SetTimeout(5);
+  if (!appConfig.authentication_.empty())
+  {
+    client.AddHeader("Authentication", appConfig.authentication_);
+  }
+  client.SetBody(bodyString);
+  client.Execute();
 }
 
+
+static void ProcessTransferTask(const AppConfiguration& appConfig, const StableEventDTOGet& dto)
+{
+  LOG(INFO) << "[ProcessTransferTask] process ProcessTransferTask id=" << dto.id_;
+  std::list<TransferJobDTOGet> jobs;
+
+  // Check if still running
+  if (SaolaDatabase::Instance().GetTransferJobsByByQueueId(dto.id_, jobs))
+  {
+    for (TransferJobDTOGet job : jobs)
+    {
+      Json::Value response;
+      if (OrthancPlugins::RestApiGet(response, "/jobs/" + job.id_, false) && !response.empty())
+      {
+        if (response.isMember("State") &&
+            (response["State"].asString() == "Pending" ||
+             response["State"].asString() == "Running" ||
+             response["State"].asString() == "Success"
+             ))
+        {
+          LOG(INFO) << "[ProcessTransferTask] Do not process Task id=" << dto.id_ << " which has state=" << response.toStyledString();
+          return;
+        }
+      }
+    }
+  }
+
+  Json::Value body;
+  body["Compression"] = "gzip";
+  body["Peer"] = "peer";
+  body["Priority"] = 5;
+  body["Resources"] = Json::arrayValue;
+  {
+    Json::Value resource;
+    resource["Level"] = dto.resource_type_;
+    resource["ID"] = dto.resource_id_;
+    body["Resources"].append(resource);
+  }
+
+  LOG(INFO) << "[ProcessTransferTask] body=" << body.toStyledString() << ", url=" << appConfig.url_;
+  Json::Value jobResponse;
+  if (!OrthancPlugins::RestApiPost(jobResponse, appConfig.url_, body, true))
+  {
+    LOG(INFO) << "[ProcessTransferTask] response=" << jobResponse.toStyledString();
+    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, "Cannot POST to TRANSFER PLUGIN", dto.retry_ + 1));
+    SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
+    return;
+  }
+
+  // Save job
+  TransferJobDTOGet result;
+  SaolaDatabase::Instance().SaveTransferJob(TransferJobDTOCreate(jobResponse["ID"].asString(), dto.id_), result);
+}
+
+static void ProcessExternalTask(const AppConfiguration& appConfig, const StableEventDTOGet& dto)
+{
+  try
+  {
+    Json::Value mainDicomTags;
+    GetMainDicomTags(dto.resource_id_, Orthanc::StringToResourceType(dto.resource_type_.c_str()), mainDicomTags);
+    if (!mainDicomTags.empty())
+    {
+      ConstructAndSendMessage(appConfig, mainDicomTags);
+      SaolaDatabase::Instance().DeleteEventByIds(std::list<int64_t>{dto.id_});
+    }
+    else
+    {
+      SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, "Cannnot get MainDicomTag", dto.retry_ + 1));
+    }
+  }
+  catch (Orthanc::OrthancException& e)
+  {
+    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, e.What(), dto.retry_ + 1));
+  }
+  catch (...)
+  {
+    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, "No reason found", dto.retry_ + 1));
+  }
+}
 
 StableEventScheduler& StableEventScheduler::Instance()
 {
@@ -216,9 +289,9 @@ StableEventScheduler::~StableEventScheduler()
 
 void StableEventScheduler::MonitorDatabase()
 {
-  LOG(INFO) << "[MonitorDatabase] Start monitoring ...";
+  LOG(INFO) << "[StableEventScheduler::MonitorDatabase] Start monitoring ...";
   std::list<StableEventDTOGet> results;
-  SaolaDatabase::Instance().FindByRetryLessThan(5, results);
+  SaolaDatabase::Instance().FindByRetryLessThan(SaolaConfiguration::Instance().GetMaxRetry(), results);
   for (const auto& a : results)
   {
     LOG(INFO) << "[MonitorDatabase] Result {id=" << a.id_ << ", iuid=" << a.iuid_ << ", resource_id=" << a.resource_id_ << ", resource_type=" << a.resource_type_ <<
@@ -228,29 +301,19 @@ void StableEventScheduler::MonitorDatabase()
 
     LOG(INFO) << "[MonitorDatabase] time elapsed: " << GetNow() - t;
 
-    if (GetNow() - t > boost::posix_time::seconds(a.delay_sec_))
+    if (GetNow() - t < boost::posix_time::seconds(a.delay_sec_))
     {
-      try
-      {
-        Json::Value mainDicomTags;
-        GetMainDicomTags(a.resource_id_, Orthanc::StringToResourceType(a.resource_type_.c_str()), mainDicomTags);
-        if (!mainDicomTags.empty())
-        {
-          ConstructAndSendMessage(a.app_, mainDicomTags);
-        }
-        else
-        {
-          SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(a.id_, "Cannnot get MainDicomTag", a.retry_ + 1));
-        }
-      }
-      catch (Orthanc::OrthancException& e)
-      {
-        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(a.id_, e.What(), a.retry_ + 1));
-      }
-      catch (...)
-      {
-        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(a.id_, "No reason found", a.retry_ + 1));
-      }
+      continue;
+    }
+    AppConfiguration appConfig;
+    SaolaConfiguration::Instance().GetAppConfigurationById(a.app_id_, appConfig);
+    if (appConfig.type_ == "Transfer")
+    {
+      ProcessTransferTask(appConfig, a);
+    }
+    else
+    {
+      ProcessExternalTask(appConfig, a);
     }
   }
 }
@@ -258,36 +321,34 @@ void StableEventScheduler::MonitorDatabase()
 
 void StableEventScheduler::Start()
 {
-    if (this->m_state != State_Setup)
+  if (this->m_state != State_Setup)
+  {
+    throw Orthanc::OrthancException(Orthanc::ErrorCode_BadSequenceOfCalls);
+  }
+
+  this->m_state = State_Running;
+  const auto intervalSeconds = 10;
+  this->m_worker = new std::thread([this, intervalSeconds]() {
+    while (this->m_state == State_Running)
     {
-        throw Orthanc::OrthancException(Orthanc::ErrorCode_BadSequenceOfCalls);
-    }
-
-    this->m_state = State_Running;
-
-    const auto intervalSeconds = 10;
-
-    this->m_worker = new std::thread([this, intervalSeconds]() {
-      while (this->m_state == State_Running)
+      this->MonitorDatabase();
+      for (unsigned int i = 0; i < intervalSeconds * 10; i++)
       {
-        this->MonitorDatabase();
-        for (unsigned int i = 0; i < intervalSeconds * 10; i++)
-        {
-          std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
       }
-    });
+    }
+  });
 }
 
 void StableEventScheduler::Stop()
 {
-    if (this->m_state == State_Running)
-    {
-        this->m_state = State_Done;
-        if (this->m_worker->joinable())
-            this->m_worker->join();
-        delete this->m_worker;
-    }
+  if (this->m_state == State_Running)
+  {
+    this->m_state = State_Done;
+    if (this->m_worker->joinable())
+        this->m_worker->join();
+    delete this->m_worker;
+  }
 }
 
     

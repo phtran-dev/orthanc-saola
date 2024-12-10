@@ -8,12 +8,13 @@
 #include <memory> 
 
 
-
 class SaolaConfiguration
 {
 private:
 
   bool enable_;
+
+  int maxRetry_ = 5;
 
   std::string root_;
 
@@ -25,9 +26,11 @@ public:
 
   static SaolaConfiguration& Instance();
 
-  void GetAppConfiguration(const std::string& app, std::list<std::shared_ptr<AppConfiguration>>& res);
+  bool GetAppConfigurationById(const std::string& id, AppConfiguration& res);
 
   bool IsEnabled() const;
+
+  int GetMaxRetry() const;
   
   const std::string& GetRoot() const;
 

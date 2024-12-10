@@ -15,7 +15,7 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
 
   this->enable_ = saola.GetBooleanValue("Enable", false);
   this->root_ = saola.GetStringValue("Root", "/saola/");
-
+  this->maxRetry_ = saola.GetIntegerValue("MaxRetry", 5);
   
   for (const auto& appConfig : saola.GetJson()["Apps"])
   {
@@ -25,9 +25,11 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
     }
 
     std::shared_ptr<AppConfiguration> app = std::make_shared<AppConfiguration>();
-    app->type = appConfig["Type"].asString();
-    app->delay = appConfig["Delay"].asInt();
-    app->url = appConfig["Url"].asString();
+    app->id_ = appConfig["Id"].asString();
+    app->type_ = appConfig["Type"].asString();
+    app->delay_ = appConfig["Delay"].asInt();
+    app->url_ = appConfig["Url"].asString();
+    
     // Default Mapping
     app->fieldMapping_.emplace("aeTitle", RemoteAET);
     app->fieldMapping_.emplace("ipAddress", RemoteIP);
@@ -99,15 +101,39 @@ SaolaConfiguration& SaolaConfiguration::Instance()
   return configuration_;
 }
 
-void SaolaConfiguration::GetAppConfiguration(const std::string& type, std::list<std::shared_ptr<AppConfiguration>>& results)
+std::string id_;
+
+  bool enable_;
+
+  std::string type_;
+
+  unsigned int delay_ = 0;
+
+  std::string url_;
+
+  std::string authentication_;
+
+  std::map<std::string, std::string> fieldMapping_;
+
+  std::map<std::string, std::string> fieldValues_;
+
+
+bool SaolaConfiguration::GetAppConfigurationById(const std::string& id, AppConfiguration& res)
 {
   for (auto& app : this->apps_)
   {
-    if (app->type == type)
+    if (app->id_ == id && app->enable_)
     {
-      results.push_back(app);
+      app->clone(res);
+      return true;
     }
   }
+  return false;
+}
+
+int SaolaConfiguration::GetMaxRetry() const
+{
+  return this->maxRetry_;
 }
 
 bool SaolaConfiguration::IsEnabled() const

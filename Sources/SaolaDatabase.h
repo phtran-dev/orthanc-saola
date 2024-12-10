@@ -1,30 +1,11 @@
-/**
- * Indexer plugin for Orthanc
- * Copyright (C) 2021-2024 Sebastien Jodogne, UCLouvain, Belgium
- *
- * This program is free software: you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- **/
-
-
 #pragma once
 
 #include "StableEventDTOCreate.h"
 #include "StableEventDTOUpdate.h"
 #include "StableEventDTOGet.h"
 
-#include "FailedJobDTOCreate.h"
-#include "FailedJobDTOGet.h"
+#include "TransferJobDTOCreate.h"
+#include "TransferJobDTOGet.h"
 
 #include "FailedJobFilter.h"
 
@@ -102,22 +83,32 @@ public:
   // import of an external DICOM file
   int64_t AddEvent(const StableEventDTOCreate& obj);
 
-  bool DeleteEventByIds(const std::list<int> ids);
+  bool DeleteEventByIds(const std::list<int64_t>& ids);
 
   bool DeleteEventByIds(const std::string& ids);
 
   bool UpdateEvent(const StableEventDTOUpdate& obj);
 
+  bool ResetEvents();
+
+  bool GetById(int64_t id, StableEventDTOGet& result);
+
   void FindAll(const Pagination& page, std::list<StableEventDTOGet>& results);
 
   void FindByRetryLessThan(int retry, std::list<StableEventDTOGet>& results);
 
-  void SaveFailedJob(const FailedJobDTOCreate& dto, FailedJobDTOGet& result);
+  void SaveTransferJob(const TransferJobDTOCreate& dto, TransferJobDTOGet& result);
 
-  void FindAll(const Pagination& page, const FailedJobFilter& filter, std::list<FailedJobDTOGet>& results);
+  // void FindAll(const Pagination& page, const FailedJobFilter& filter, std::list<FailedJobDTOGet>& results);
 
   bool ResetFailedJob(const std::list<std::string>& ids);
 
-  bool DeleteFailedJobByIds(const std::string& ids);
+  bool DeleteTransferJobByIds(const std::list<std::string>& ids);
+
+  bool DeleteTransferJobsByQueueId(int64_t id);
+
+  bool GetById(const std::string& id, TransferJobDTOGet& result);
+
+  bool GetTransferJobsByByQueueId(int64_t id, std::list<TransferJobDTOGet>& results);
 
 };

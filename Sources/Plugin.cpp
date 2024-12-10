@@ -20,6 +20,7 @@
 #include "SaolaDatabase.h"
 
 #include "StableEventScheduler.h"
+// #include "FailedJobScheduler.h"
 
 #include "StableEventDTOCreate.h"
 #include "MainDicomTags.h"
@@ -55,11 +56,15 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
   switch (changeType)
   {
     case OrthancPluginChangeType_OrthancStarted:
-      StableEventScheduler::Instance().Start();
+      {
+        StableEventScheduler::Instance().Start();
+      }
       break;
 
     case OrthancPluginChangeType_OrthancStopped:
-      StableEventScheduler::Instance().Stop();
+      {
+        StableEventScheduler::Instance().Stop();
+      }
       break;
 
     default:
@@ -107,11 +112,9 @@ extern "C"
       LOG(WARNING) << "Path to the database of the Saola plugin: " << path;
       SaolaDatabase::Instance().Open(path);
 
-      OrthancPlugins::RegisterRestCallback<GetStableEvents>(SaolaConfiguration::Instance().GetRoot() + "event-queues", true);
-      OrthancPlugins::RegisterRestCallback<SaveStableEvent>(SaolaConfiguration::Instance().GetRoot() + "event-queues", true);
-      OrthancPlugins::RegisterRestCallback<DeleteStableEvent>(SaolaConfiguration::Instance().GetRoot() + "event-queues/([^/]*)", true);
-      OrthancPlugins::RegisterRestCallback<HandleFailedJobService>(SaolaConfiguration::Instance().GetRoot() + "failed-jobs", true);
-      OrthancPlugins::RegisterRestCallback<DeleteFailedJob>(SaolaConfiguration::Instance().GetRoot() + "failed-jobs/([^/]*)", true);
+      OrthancPlugins::RegisterRestCallback<HandleStableEvents>(SaolaConfiguration::Instance().GetRoot() + "event-queues", true);
+      OrthancPlugins::RegisterRestCallback<DeleteOrResetStableEvent>(SaolaConfiguration::Instance().GetRoot() + "event-queues/([^/]*)", true);
+      OrthancPlugins::RegisterRestCallback<UpdateTransferJobs>(SaolaConfiguration::Instance().GetRoot() + "transfer-jobs/([^/]*)/([^/]*)", true);
       
       OrthancPluginRegisterOnChangeCallback(context, OnChangeCallback);
     }

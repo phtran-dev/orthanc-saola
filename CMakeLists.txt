@@ -19,7 +19,7 @@ cmake_minimum_required(VERSION 2.8)
 
 project(OrthancSaola)
 
-set(ORTHANC_PLUGIN_VERSION "mainline")
+set(ORTHANC_PLUGIN_VERSION "1.0.0")
 
 if (ORTHANC_PLUGIN_VERSION STREQUAL "mainline")
   set(ORTHANC_FRAMEWORK_DEFAULT_VERSION "mainline")
@@ -137,6 +137,7 @@ add_library(OrthancSaola SHARED
   Sources/SaolaDatabase.cpp
   Sources/SaolaConfiguration.cpp
   Sources/StableEventScheduler.cpp
+  # Sources/FailedJobScheduler.cpp
   Sources/RestApi.cpp
   Sources/Plugin.cpp
   
