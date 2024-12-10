@@ -221,7 +221,11 @@ static void ProcessTransferTask(const AppConfiguration& appConfig, const StableE
 
   Json::Value body;
   body["Compression"] = "gzip";
-  body["Peer"] = "peer";
+  if (appConfig.fieldValues_.find("Peer") != appConfig.fieldValues_.end())
+  {
+    body["Peer"] = appConfig.fieldValues_.at("Peer");
+  }
+
   body["Priority"] = 5;
   body["Resources"] = Json::arrayValue;
   {
