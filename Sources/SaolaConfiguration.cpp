@@ -2,10 +2,10 @@
 #include "Constants.h"
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
+#include <Toolbox.h>
 #include <Logging.h>
 
 #include <boost/algorithm/string.hpp>
-
 
 SaolaConfiguration::SaolaConfiguration(/* args */)
 {
@@ -16,8 +16,8 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->enable_ = saola.GetBooleanValue("Enable", false);
   this->root_ = saola.GetStringValue("Root", "/saola/");
   this->maxRetry_ = saola.GetIntegerValue("MaxRetry", 5);
-  
-  for (const auto& appConfig : saola.GetJson()["Apps"])
+
+  for (const auto &appConfig : saola.GetJson()["Apps"])
   {
     if (!appConfig["Enable"].asBool())
     {
@@ -26,10 +26,36 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
 
     std::shared_ptr<AppConfiguration> app = std::make_shared<AppConfiguration>();
     app->id_ = appConfig["Id"].asString();
+    if (appConfig.isMember("Authentication"))
+    {
+      app->authentication_ = appConfig["Authentication"].asString();
+    }
+    if (appConfig.isMember("Method"))
+    {
+      std::string methodName = appConfig["Method"].asString();
+      Orthanc::Toolbox::ToUpperCase(methodName);
+      if (methodName == "POST")
+      {
+        app->method_ = OrthancPluginHttpMethod_Post;
+      }
+      else if (methodName == "GET")
+      {
+        app->method_ = OrthancPluginHttpMethod_Get;
+      }
+      else if (methodName == "PUT")
+      {
+        app->method_ = OrthancPluginHttpMethod_Put;
+      }
+      else if (methodName == "DELETE")
+      {
+        app->method_ = OrthancPluginHttpMethod_Delete;
+      }
+    }
+
     app->type_ = appConfig["Type"].asString();
     app->delay_ = appConfig["Delay"].asInt();
     app->url_ = appConfig["Url"].asString();
-    
+
     // Default Mapping
     app->fieldMapping_.emplace("aeTitle", RemoteAET);
     app->fieldMapping_.emplace("ipAddress", RemoteIP);
@@ -63,14 +89,13 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
     app->fieldMapping_.emplace("modalitiesInStudy", ModalitiesInStudy);
     app->fieldMapping_.emplace("numberOfStudyRelatedSeries", NumberOfStudyRelatedSeries);
     app->fieldMapping_.emplace("numberOfStudyRelatedInstances", NumberOfStudyRelatedInstances);
-    
 
     if (appConfig["FieldMappingOverwrite"].asBool())
     {
       app->fieldMapping_.clear();
     }
 
-    for (auto& m : appConfig["FieldMapping"])
+    for (auto &m : appConfig["FieldMapping"])
     {
       std::vector<std::string> keys;
       boost::split(keys, m.asString(), boost::is_any_of(":"));
@@ -82,9 +107,9 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
       app->fieldMapping_.emplace(keys[0], keys[1]);
     }
 
-    for (auto& valueMap : appConfig["FieldValues"])
+    for (auto &valueMap : appConfig["FieldValues"])
     {
-      for (const auto& memberName : valueMap.getMemberNames())
+      for (const auto &memberName : valueMap.getMemberNames())
       {
         app->fieldValues_[memberName] = valueMap[memberName.c_str()];
       }
@@ -92,10 +117,9 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
 
     apps_.push_back(app);
   }
-
 }
 
-SaolaConfiguration& SaolaConfiguration::Instance()
+SaolaConfiguration &SaolaConfiguration::Instance()
 {
   static SaolaConfiguration configuration_;
   return configuration_;
@@ -103,24 +127,23 @@ SaolaConfiguration& SaolaConfiguration::Instance()
 
 std::string id_;
 
-  bool enable_;
+bool enable_;
 
-  std::string type_;
+std::string type_;
 
-  unsigned int delay_ = 0;
+unsigned int delay_ = 0;
 
-  std::string url_;
+std::string url_;
 
-  std::string authentication_;
+std::string authentication_;
 
-  std::map<std::string, std::string> fieldMapping_;
+std::map<std::string, std::string> fieldMapping_;
 
-  std::map<std::string, std::string> fieldValues_;
+std::map<std::string, std::string> fieldValues_;
 
-
-bool SaolaConfiguration::GetAppConfigurationById(const std::string& id, AppConfiguration& res)
+bool SaolaConfiguration::GetAppConfigurationById(const std::string &id, AppConfiguration &res)
 {
-  for (auto& app : this->apps_)
+  for (auto &app : this->apps_)
   {
     if (app->id_ == id && app->enable_)
     {
@@ -141,7 +164,7 @@ bool SaolaConfiguration::IsEnabled() const
   return this->enable_;
 }
 
-const std::string& SaolaConfiguration::GetRoot() const
+const std::string &SaolaConfiguration::GetRoot() const
 {
   return this->root_;
 }

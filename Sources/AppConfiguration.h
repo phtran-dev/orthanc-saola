@@ -1,5 +1,7 @@
 #pragma once
 
+#include <orthanc/OrthancCPlugin.h>
+
 #include <string>
 #include <map>
 
@@ -19,6 +21,8 @@ struct AppConfiguration
 
   std::string authentication_;
 
+  OrthancPluginHttpMethod method_ = OrthancPluginHttpMethod_Post;
+
   std::map<std::string, std::string> fieldMapping_;
 
   Json::Value fieldValues_;
@@ -34,6 +38,7 @@ struct AppConfiguration
     that.type_ = this->type_;
     that.delay_ = this->delay_;
     that.url_ = this->url_;
+    that.method_ = this->method_;
     that.authentication_ = this->authentication_;
     for (const auto& m : this->fieldMapping_)
     {

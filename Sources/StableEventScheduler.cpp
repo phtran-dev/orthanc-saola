@@ -182,10 +182,11 @@ static void ConstructAndSendMessage(const AppConfiguration &appConfig, const Jso
   LOG(INFO) << "[ConstructAndSendMessage] Body = " << body.toStyledString();
   OrthancPlugins::HttpClient client;
   client.SetUrl(appConfig.url_);
-  client.SetTimeout(5);
+  client.SetMethod(appConfig.method_);
+  client.AddHeader("Content-Type", "application/json");
   if (!appConfig.authentication_.empty())
   {
-    client.AddHeader("Authentication", appConfig.authentication_);
+    client.AddHeader("Authorization", appConfig.authentication_);
   }
   client.SetBody(bodyString);
   client.Execute();
@@ -316,11 +317,10 @@ void StableEventScheduler::MonitorDatabase()
 
     boost::posix_time::ptime t = boost::posix_time::from_iso_string(a.creation_time_);
 
-    LOG(INFO) << "[MonitorDatabase] time elapsed: " << GetNow() - t;
+    LOG(INFO) << "[MonitorDatabase] time elapsed: " << GetNow() - t << ", delay=" << a.delay_sec_;
 
     if (GetNow() - t < boost::posix_time::seconds(a.delay_sec_))
     {
-      LOG(INFO) << "[MonitorDatabase] Continuing since delay=" << a.delay_sec_;
       continue;
     }
 
