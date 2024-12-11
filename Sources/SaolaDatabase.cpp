@@ -164,12 +164,13 @@ int64_t SaolaDatabase::AddEvent(const StableEventDTOCreate& obj)
   transaction.Begin();
   {
     Orthanc::SQLite::Statement statement(db_, SQLITE_FROM_HERE,
-                                         "INSERT INTO StableEventQueues (iuid, resource_id, resource_type, app_id, creation_time) VALUES(?, ?, ?, ?, ?)");
+                                         "INSERT INTO StableEventQueues (iuid, resource_id, resource_type, app_id, delay_sec, creation_time) VALUES(?, ?, ?, ?, ?, ?)");
     statement.BindString(0, obj.iuid_);
     statement.BindString(1, obj.resource_id_);
     statement.BindString(2, obj.resouce_type_);
     statement.BindString(3, obj.app_id_);
-    statement.BindString(4, boost::posix_time::to_iso_string(GetNow()));
+    statement.BindInt(4, obj.delay_);
+    statement.BindString(5, boost::posix_time::to_iso_string(GetNow()));
     statement.Run();
   }
   

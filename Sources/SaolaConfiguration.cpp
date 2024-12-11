@@ -86,7 +86,7 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
     {
       for (const auto& memberName : valueMap.getMemberNames())
       {
-        app->fieldValues_.emplace(memberName, valueMap[memberName.c_str()].asCString());
+        app->fieldValues_[memberName] = valueMap[memberName.c_str()];
       }
     }
 

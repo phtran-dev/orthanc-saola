@@ -18,12 +18,3 @@ CREATE TABLE TransferJobs(
 );
 
 
-CREATE TABLE FailedJobs(
-  id TEXT PRIMARY KEY,
-  content TEXT,
-  retry INTEGER DEFAULT 0,
-  last_updated_time TEXT,
-  creation_time TEXT
-);
-
-

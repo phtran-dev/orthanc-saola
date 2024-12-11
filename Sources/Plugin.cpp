@@ -43,9 +43,9 @@
 #define ORTHANC_PLUGIN_NAME  "saola"
 
 
-static const char* const DATABASE = "Database";
-static const char* const INDEX_DIRECTORY = "IndexDirectory";
-static const char* const ORTHANC_STORAGE = "OrthancStorage";
+static const char* const DATABASE          = "Database";
+static const char* const INDEX_DIRECTORY   = "IndexDirectory";
+static const char* const ORTHANC_STORAGE   = "OrthancStorage";
 static const char* const STORAGE_DIRECTORY = "StorageDirectory";
 
 
@@ -92,9 +92,7 @@ extern "C"
       return -1;
     }
 
-    OrthancPlugins::SetDescription(ORTHANC_PLUGIN_NAME, "Synchronize Orthanc with directories containing DICOM files.");
-
-
+    OrthancPlugins::SetDescription(ORTHANC_PLUGIN_NAME, "Saola Backend");
 
     if (!SaolaConfiguration::Instance().IsEnabled())
     {

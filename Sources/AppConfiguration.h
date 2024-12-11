@@ -1,7 +1,9 @@
 #pragma once
 
 #include <string>
-#include <map> 
+#include <map>
+
+#include <json/value.h>
 
 struct AppConfiguration
 {
@@ -19,7 +21,7 @@ struct AppConfiguration
 
   std::map<std::string, std::string> fieldMapping_;
 
-  std::map<std::string, std::string> fieldValues_;
+  Json::Value fieldValues_;
 
   AppConfiguration()
   {
@@ -37,10 +39,7 @@ struct AppConfiguration
     {
       that.fieldMapping_[m.first] = m.second;
     }
-    for (const auto& m : this->fieldValues_)
-    {
-      that.fieldValues_[m.first] = m.second;
-    }
+    that.fieldValues_.copy(this->fieldValues_);
   }
 
 };

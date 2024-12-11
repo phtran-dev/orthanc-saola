@@ -88,7 +88,7 @@ static void SaveStableEvent(OrthancPluginRestOutput *output,
   dto.resource_id_ = requestBody["resource_id"].asCString();
   dto.resouce_type_ = requestBody["resource_type"].asCString();
   dto.app_id_ = requestBody["app"].asCString();
-
+  dto.delay_ = app.delay_;
   if (requestBody.isMember("delay"))
   {
     dto.delay_ = requestBody["delay"].asInt();
