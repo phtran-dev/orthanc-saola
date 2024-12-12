@@ -16,68 +16,55 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  **/
 
-
 #include "SaolaDatabase.h"
-
 #include "StableEventScheduler.h"
-// #include "FailedJobScheduler.h"
-
 #include "StableEventDTOCreate.h"
 #include "MainDicomTags.h"
 #include "SaolaConfiguration.h"
 #include "Constants.h"
-
 #include "RestApi.h"
 
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
-#include <DicomFormat/DicomInstanceHasher.h>
-#include <DicomFormat/DicomMap.h>
 #include <Logging.h>
-#include <SerializationToolbox.h>
 #include <SystemToolbox.h>
 
 #include <boost/filesystem.hpp>
 
+#define ORTHANC_PLUGIN_NAME "orthanc-saola-api"
 
-#define ORTHANC_PLUGIN_NAME  "saola"
-
-
-static const char* const DATABASE          = "Database";
-static const char* const INDEX_DIRECTORY   = "IndexDirectory";
-static const char* const ORTHANC_STORAGE   = "OrthancStorage";
-static const char* const STORAGE_DIRECTORY = "StorageDirectory";
-
+static const char *const DATABASE = "Database";
+static const char *const ORTHANC_STORAGE = "OrthancStorage";
+static const char *const STORAGE_DIRECTORY = "StorageDirectory";
 
 static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeType,
                                                OrthancPluginResourceType resourceType,
-                                               const char* resourceId)
+                                               const char *resourceId)
 {
   switch (changeType)
   {
-    case OrthancPluginChangeType_OrthancStarted:
-      {
-        StableEventScheduler::Instance().Start();
-      }
-      break;
+  case OrthancPluginChangeType_OrthancStarted:
+  {
+    StableEventScheduler::Instance().Start();
+  }
+  break;
 
-    case OrthancPluginChangeType_OrthancStopped:
-      {
-        StableEventScheduler::Instance().Stop();
-      }
-      break;
+  case OrthancPluginChangeType_OrthancStopped:
+  {
+    StableEventScheduler::Instance().Stop();
+  }
+  break;
 
-    default:
-      break;
+  default:
+    break;
   }
 
   return OrthancPluginErrorCode_Success;
 }
 
-
 extern "C"
 {
-  ORTHANC_PLUGINS_API int32_t OrthancPluginInitialize(OrthancPluginContext* context)
+  ORTHANC_PLUGINS_API int32_t OrthancPluginInitialize(OrthancPluginContext *context)
   {
     OrthancPlugins::SetGlobalContext(context);
     Orthanc::Logging::InitializePluginContext(context);
@@ -97,26 +84,27 @@ extern "C"
     if (!SaolaConfiguration::Instance().IsEnabled())
     {
       OrthancPlugins::LogWarning("OrthancSaola is disabled");
-      return -1;
+      return 0;
     }
 
     try
     {
       OrthancPlugins::OrthancConfiguration configuration;
-      std::string folder = configuration.GetStringValue(STORAGE_DIRECTORY, ORTHANC_STORAGE);;
+      std::string folder = configuration.GetStringValue(STORAGE_DIRECTORY, ORTHANC_STORAGE);
+      ;
       Orthanc::SystemToolbox::MakeDirectory(folder);
       std::string path = (boost::filesystem::path(folder) / "saola-plugin.db").string();
-      
+
       LOG(WARNING) << "Path to the database of the Saola plugin: " << path;
       SaolaDatabase::Instance().Open(path);
 
       OrthancPlugins::RegisterRestCallback<HandleStableEvents>(SaolaConfiguration::Instance().GetRoot() + "event-queues", true);
       OrthancPlugins::RegisterRestCallback<DeleteOrResetStableEvent>(SaolaConfiguration::Instance().GetRoot() + "event-queues/([^/]*)", true);
       OrthancPlugins::RegisterRestCallback<UpdateTransferJobs>(SaolaConfiguration::Instance().GetRoot() + "transfer-jobs/([^/]*)/([^/]*)", true);
-      
+
       OrthancPluginRegisterOnChangeCallback(context, OnChangeCallback);
     }
-    catch (Orthanc::OrthancException& e)
+    catch (Orthanc::OrthancException &e)
     {
       return -1;
     }
@@ -129,20 +117,17 @@ extern "C"
     return 0;
   }
 
-
   ORTHANC_PLUGINS_API void OrthancPluginFinalize()
   {
     OrthancPlugins::LogWarning("Saola plugin is finalizing");
   }
 
-
-  ORTHANC_PLUGINS_API const char* OrthancPluginGetName()
+  ORTHANC_PLUGINS_API const char *OrthancPluginGetName()
   {
     return ORTHANC_PLUGIN_NAME;
   }
 
-
-  ORTHANC_PLUGINS_API const char* OrthancPluginGetVersion()
+  ORTHANC_PLUGINS_API const char *OrthancPluginGetVersion()
   {
     return ORTHANC_PLUGIN_VERSION;
   }
