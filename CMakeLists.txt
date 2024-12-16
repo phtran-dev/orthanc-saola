@@ -137,7 +137,7 @@ add_library(OrthancSaola SHARED
   Sources/SaolaDatabase.cpp
   Sources/SaolaConfiguration.cpp
   Sources/StableEventScheduler.cpp
-  # Sources/FailedJobScheduler.cpp
+  Sources/TelegramNotification.cpp
   Sources/RestApi.cpp
   Sources/Plugin.cpp
   

@@ -17,6 +17,8 @@ struct AppConfiguration
 
   unsigned int delay_ = 0;
 
+  int timeOut_;
+
   std::string url_;
 
   std::string authentication_;

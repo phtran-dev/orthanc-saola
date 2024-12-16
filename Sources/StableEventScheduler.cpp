@@ -11,6 +11,8 @@
 #include "SaolaConfiguration.h"
 #include "Constants.h"
 
+#include "TelegramNotification.h"
+
 #include <Logging.h>
 #include <Enumerations.h>
 #include <chrono>
@@ -172,7 +174,7 @@ static void ConstructAndSendMessage(const AppConfiguration &appConfig, const Jso
     }
   }
 
-  for (const auto& member : appConfig.fieldValues_.getMemberNames())
+  for (const auto &member : appConfig.fieldValues_.getMemberNames())
   {
     body[member] = appConfig.fieldValues_[member];
   }
@@ -195,6 +197,9 @@ static void ConstructAndSendMessage(const AppConfiguration &appConfig, const Jso
 static void ProcessTransferTask(const AppConfiguration &appConfig, const StableEventDTOGet &dto)
 {
   LOG(INFO) << "[ProcessTransferTask] process ProcessTransferTask id=" << dto.id_;
+  Json::Value notification;
+  dto.ToJson(notification);
+
   try
   {
     std::list<TransferJobDTOGet> jobs;
@@ -237,7 +242,11 @@ static void ProcessTransferTask(const AppConfiguration &appConfig, const StableE
       LOG(INFO) << "[ProcessTransferTask] response=" << jobResponse.toStyledString();
       SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, "Cannot POST to TRANSFER PLUGIN", dto.retry_ + 1));
       SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-      return;
+      // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
+      {
+        notification["Exception"] = "Cannot POST to TRANSFER PLUGIN.";
+        return;
+      }
     }
 
     // Save job
@@ -248,21 +257,41 @@ static void ProcessTransferTask(const AppConfiguration &appConfig, const StableE
   {
     SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, e.What(), dto.retry_ + 1));
     SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
+    // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
+    {
+      notification["Exception"] = "Cannot POST to TRANSFER PLUGIN.";
+      TelegramNotification::Instance().SendMessage(notification);
+    }
   }
   catch (std::exception &e)
   {
     SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, e.what(), dto.retry_ + 1));
     SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
+    // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
+    {
+      notification["Exception"] = e.what();
+      TelegramNotification::Instance().SendMessage(notification);
+    }
   }
   catch (...)
   {
     SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, "Exception occurs but no specific reason", dto.retry_ + 1));
     SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
+
+    // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
+    {
+      notification["Exception"] = "Exception occurs but no specific reason";
+      TelegramNotification::Instance().SendMessage(notification);
+    }
   }
 }
 
 static void ProcessExternalTask(const AppConfiguration &appConfig, const StableEventDTOGet &dto)
 {
+  Json::Value notification;
+  notification["TaskType"] = appConfig.type_;
+  notification["TaskContent"] = Json::objectValue;
+  dto.ToJson(notification["TaskContent"]);
   try
   {
     Json::Value mainDicomTags;
@@ -275,19 +304,39 @@ static void ProcessExternalTask(const AppConfiguration &appConfig, const StableE
     else
     {
       SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, "Cannnot get MainDicomTag", dto.retry_ + 1));
+      // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
+      {
+        notification["Exception"] = "Cannnot get MainDicomTag";
+        TelegramNotification::Instance().SendMessage(notification);
+      }
     }
   }
   catch (std::exception &e)
   {
     SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, e.what(), dto.retry_ + 1));
+    // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
+    {
+      notification["Exception"] = e.what();
+      TelegramNotification::Instance().SendMessage(notification);
+    }
   }
   catch (Orthanc::OrthancException &e)
   {
     SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, e.What(), dto.retry_ + 1));
+    // if (dto.retry_>= SaolaConfiguration::Instance().GetMaxRetry())
+    {
+      notification["Exception"] = e.What();
+      TelegramNotification::Instance().SendMessage(notification);
+    }
   }
   catch (...)
   {
     SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, "Exception with no reason found", dto.retry_ + 1));
+    // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
+    {
+      notification["Exception"] = "Exception with no reason found";
+      TelegramNotification::Instance().SendMessage(notification);
+    }
   }
 }
 

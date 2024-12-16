@@ -6,32 +6,31 @@
 class StableEventScheduler
 {
 private:
-    enum State
-    {
-        State_Setup,
-        State_Running,
-        State_Done
-    };
+  enum State
+  {
+    State_Setup,
+    State_Running,
+    State_Done
+  };
 
-    std::thread* m_worker;
+  std::thread *m_worker;
 
-    State                       m_state;
+  State m_state;
 
-    static void Worker(const State* state);
+  static void Worker(const State *state);
 
-    StableEventScheduler() : m_state(State_Setup)
-	  {
-	  }
+  StableEventScheduler() : m_state(State_Setup)
+  {
+  }
 
-    void MonitorDatabase();
+  void MonitorDatabase();
 
 public:
-    static StableEventScheduler& Instance();
+  static StableEventScheduler &Instance();
 
-    ~StableEventScheduler();
+  ~StableEventScheduler();
 
-    void Start();
-  
-    void Stop();
+  void Start();
 
+  void Stop();
 };
