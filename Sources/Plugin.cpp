@@ -23,6 +23,7 @@
 #include "SaolaConfiguration.h"
 #include "Constants.h"
 #include "RestApi.h"
+#include "JobHandler.h"
 
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
@@ -44,17 +45,21 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
   switch (changeType)
   {
   case OrthancPluginChangeType_OrthancStarted:
-  {
     StableEventScheduler::Instance().Start();
-  }
-  break;
+    break;
 
   case OrthancPluginChangeType_OrthancStopped:
-  {
     StableEventScheduler::Instance().Stop();
-  }
-  break;
+    break;
 
+  case OrthancPluginChangeType_JobSuccess:
+    OnJobSuccess(resourceId);
+    break;
+
+  case OrthancPluginChangeType_JobFailure:
+    OnJobFailure(resourceId);
+    break;
+    
   default:
     break;
   }

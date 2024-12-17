@@ -10,7 +10,7 @@
 SaolaConfiguration::SaolaConfiguration(/* args */)
 {
   OrthancPlugins::OrthancConfiguration configuration;
-  OrthancPlugins::OrthancConfiguration saola, ris;
+  OrthancPlugins::OrthancConfiguration saola;
   configuration.GetSection(saola, "Saola");
 
   this->enable_ = saola.GetBooleanValue("Enable", false);
@@ -53,8 +53,16 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
     }
 
     app->type_ = appConfig["Type"].asString();
-    app->delay_ = appConfig["Delay"].asInt();
     app->url_ = appConfig["Url"].asString();
+
+    if (appConfig.isMember("Delay"))
+    {
+      app->delay_ = appConfig["Delay"].asInt();
+    }
+    if (appConfig.isMember("Timeout"))
+    {
+      app->timeOut_ = appConfig["Timeout"].asInt();
+    }
 
     // Default Mapping
     app->fieldMapping_.emplace("aeTitle", RemoteAET);

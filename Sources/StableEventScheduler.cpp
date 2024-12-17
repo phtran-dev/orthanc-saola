@@ -184,6 +184,7 @@ static void ConstructAndSendMessage(const AppConfiguration &appConfig, const Jso
   LOG(INFO) << "[ConstructAndSendMessage] Body = " << body.toStyledString();
   OrthancPlugins::HttpClient client;
   client.SetUrl(appConfig.url_);
+  client.SetTimeout(appConfig.timeOut_);
   client.SetMethod(appConfig.method_);
   client.AddHeader("Content-Type", "application/json");
   if (!appConfig.authentication_.empty())
