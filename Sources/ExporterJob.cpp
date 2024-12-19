@@ -33,6 +33,8 @@ static const char *const KEY_TRANSCODE = "Transcode";
 static const char *const KEY_DIRECTORY_SIZE_MB = "DirectorySizeMB";
 static const char *const KEY_DIRECTORY_SIZE = "DirectorySize";
 
+static const char* const KEY_RESOURCES = "Resources";
+
 namespace Saola
 {
   class ExporterJob::InstanceLoader : public boost::noncopyable
@@ -935,9 +937,8 @@ namespace Saola
     {
       throw Orthanc::OrthancException(Orthanc::ErrorCode_BadSequenceOfCalls);
     }
-
-    ResourceIdentifiers resource(PluginIndex::Instance(), publicId);
-    archive_->Add(PluginIndex::Instance(), resource);
+    resourceIdentifiers_.reset(new ResourceIdentifiers(PluginIndex::Instance(), publicId));
+    archive_->Add(PluginIndex::Instance(), *resourceIdentifiers_);
   }
 
   void ExporterJob::SetTranscode(Orthanc::DicomTransferSyntax transferSyntax)
@@ -1044,6 +1045,15 @@ namespace Saola
       value[KEY_DIRECTORY_SIZE] = directorySize_;
       value[KEY_DIRECTORY_SIZE_MB] =
           static_cast<unsigned int>(directorySize_ / MEGA_BYTES);
+      value[KEY_RESOURCES] = Json::arrayValue;
+      {
+        Json::Value resource = Json::objectValue;
+        resource["Study"] = resourceIdentifiers_->study_;
+        resource["Series"] = resourceIdentifiers_->series_;
+        resource["Instance"] = resourceIdentifiers_->instance_;
+        resource["Level"] = Orthanc::EnumerationToString(resourceIdentifiers_->level_);
+        value[KEY_RESOURCES].append(resource);
+      }
       UpdateContent(value);
     }
   }

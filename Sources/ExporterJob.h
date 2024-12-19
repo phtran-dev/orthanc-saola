@@ -28,6 +28,7 @@ namespace Saola
     class DirectoryWriterIterator;
 
     std::unique_ptr<InstanceLoader> instanceLoader_;
+    std::unique_ptr<ResourceIdentifiers> resourceIdentifiers_;
     boost::shared_ptr<ArchiveIndex> archive_;
     bool enableExtendedSopClass_ = false;
     std::string description_;
