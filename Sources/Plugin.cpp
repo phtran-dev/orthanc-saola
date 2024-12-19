@@ -24,6 +24,7 @@
 #include "Constants.h"
 #include "RestApi.h"
 #include "JobHandler.h"
+#include "ExporterJob.h"
 
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
@@ -38,6 +39,7 @@ static const char *const DATABASE = "Database";
 static const char *const ORTHANC_STORAGE = "OrthancStorage";
 static const char *const STORAGE_DIRECTORY = "StorageDirectory";
 
+
 static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeType,
                                                OrthancPluginResourceType resourceType,
                                                const char *resourceId)
@@ -45,8 +47,11 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
   switch (changeType)
   {
   case OrthancPluginChangeType_OrthancStarted:
+  {
+
     StableEventScheduler::Instance().Start();
     break;
+  }
 
   case OrthancPluginChangeType_OrthancStopped:
     StableEventScheduler::Instance().Stop();
@@ -59,7 +64,7 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
   case OrthancPluginChangeType_JobFailure:
     OnJobFailure(resourceId);
     break;
-    
+
   default:
     break;
   }
@@ -103,9 +108,7 @@ extern "C"
       LOG(WARNING) << "Path to the database of the Saola plugin: " << path;
       SaolaDatabase::Instance().Open(path);
 
-      OrthancPlugins::RegisterRestCallback<HandleStableEvents>(SaolaConfiguration::Instance().GetRoot() + "event-queues", true);
-      OrthancPlugins::RegisterRestCallback<DeleteOrResetStableEvent>(SaolaConfiguration::Instance().GetRoot() + "event-queues/([^/]*)", true);
-      OrthancPlugins::RegisterRestCallback<UpdateTransferJobs>(SaolaConfiguration::Instance().GetRoot() + "transfer-jobs/([^/]*)/([^/]*)", true);
+      RegisterRestEndpoint();
 
       OrthancPluginRegisterOnChangeCallback(context, OnChangeCallback);
     }

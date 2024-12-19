@@ -9,9 +9,99 @@
 // #include "FailedJobDTOGet.h"
 // #include "FailedJobFilter.h"
 
+#include "ExporterJob.h"
+
+#include <Toolbox.h>
 #include <Logging.h>
+#include <MultiThreading/SharedMessageQueue.h>
+#include <Compression/ZipWriter.h>
 
 #include <boost/algorithm/string/join.hpp>
+#include <boost/shared_ptr.hpp>
+
+#include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+
+namespace
+{
+  class SynchronousZipChunk : public Orthanc::IDynamicObject
+  {
+  private:
+    std::string chunk_;
+    bool done_;
+
+    explicit SynchronousZipChunk(bool done) : done_(done)
+    {
+    }
+
+  public:
+    static SynchronousZipChunk *CreateDone()
+    {
+      return new SynchronousZipChunk(true);
+    }
+
+    static SynchronousZipChunk *CreateChunk(const std::string &chunk)
+    {
+      std::unique_ptr<SynchronousZipChunk> item(new SynchronousZipChunk(false));
+      item->chunk_ = chunk;
+      return item.release();
+    }
+
+    bool IsDone() const
+    {
+      return done_;
+    }
+
+    void SwapString(std::string &target)
+    {
+      if (done_)
+      {
+        throw Orthanc::OrthancException(Orthanc::ErrorCode_BadSequenceOfCalls);
+      }
+      else
+      {
+        target.swap(chunk_);
+      }
+    }
+  };
+
+  class SynchronousZipStream : public Orthanc::ZipWriter::IOutputStream
+  {
+  private:
+    boost::shared_ptr<Orthanc::SharedMessageQueue> queue_;
+    uint64_t archiveSize_;
+
+  public:
+    explicit SynchronousZipStream(const boost::shared_ptr<Orthanc::SharedMessageQueue> &queue) : queue_(queue),
+                                                                                                 archiveSize_(0)
+    {
+    }
+
+    virtual uint64_t GetArchiveSize() const ORTHANC_OVERRIDE
+    {
+      return archiveSize_;
+    }
+
+    virtual void Write(const std::string &chunk) ORTHANC_OVERRIDE
+    {
+      if (queue_.unique())
+      {
+        throw Orthanc::OrthancException(Orthanc::ErrorCode_NetworkProtocol,
+                                        "HTTP client has disconnected while creating an archive in synchronous mode");
+      }
+      else
+      {
+        queue_->Enqueue(SynchronousZipChunk::CreateChunk(chunk));
+        archiveSize_ += chunk.size();
+      }
+    }
+
+    virtual void Close() ORTHANC_OVERRIDE
+    {
+      queue_->Enqueue(SynchronousZipChunk::CreateDone());
+    }
+  };
+
+}
 
 static void GetStableEvents(OrthancPluginRestOutput *output,
                             const char *url,
@@ -42,7 +132,7 @@ static void GetStableEvents(OrthancPluginRestOutput *output,
   std::list<StableEventDTOGet> events;
   SaolaDatabase::Instance().FindAll(page, events);
   Json::Value answer = Json::arrayValue;
-  for (const auto& event : events)
+  for (const auto &event : events)
   {
     Json::Value value;
     event.ToJson(value);
@@ -101,12 +191,11 @@ static void SaveStableEvent(OrthancPluginRestOutput *output,
   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
 }
 
-
 void HandleStableEvents(OrthancPluginRestOutput *output,
                         const char *url,
                         const OrthancPluginHttpRequest *request)
 {
-  
+
   if (request->method == OrthancPluginHttpMethod_Get)
   {
     GetStableEvents(output, url, request);
@@ -136,8 +225,7 @@ void ResetStableEvents(OrthancPluginRestOutput *output,
   answer["result"] = SaolaDatabase::Instance().ResetEvents();
   std::string s = answer.toStyledString();
 
-  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");  
- 
+  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
 }
 
 void DeleteStableEvent(OrthancPluginRestOutput *output,
@@ -159,7 +247,6 @@ void DeleteStableEvent(OrthancPluginRestOutput *output,
   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
 }
 
-
 void DeleteOrResetStableEvent(OrthancPluginRestOutput *output,
                               const char *url,
                               const OrthancPluginHttpRequest *request)
@@ -177,7 +264,6 @@ void DeleteOrResetStableEvent(OrthancPluginRestOutput *output,
 
   return OrthancPluginSendMethodNotAllowed(context, output, "Get, Delete");
 }
-
 
 void UpdateTransferJobs(OrthancPluginRestOutput *output,
                         const char *url,
@@ -232,13 +318,55 @@ void UpdateTransferJobs(OrthancPluginRestOutput *output,
   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
 }
 
+void ExportSingleResource(OrthancPluginRestOutput *output,
+                          const char *url,
+                          const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+
+  if (request->method != OrthancPluginHttpMethod_Post)
+  {
+    return OrthancPluginSendMethodNotAllowed(context, output, "POST");
+  }
+  
+  Json::Value requestBody;
+  OrthancPlugins::ReadJson(requestBody, request->body, request->bodySize);
+  
+  std::string exportDirectory = requestBody["ExportDir"].asString();
+  std::string resource = requestBody["Level"].asString();
+  Orthanc::Toolbox::ToUpperCase(resource);
+  std::string publicId = requestBody["ID"].asString();
+
+  std::unique_ptr<Saola::ExporterJob> job(new Saola::ExporterJob(false, exportDirectory, resource == "STUDY" ? Orthanc::ResourceType_Study : Orthanc::ResourceType_Series));
+  auto priority = 0;
+  job->AddResource(publicId);
+  job->SetLoaderThreads(0);
+  job->SetDescription("REST API");
+
+  boost::shared_ptr<Orthanc::SharedMessageQueue> queue(new Orthanc::SharedMessageQueue);
+
+  const std::string &jobId = OrthancPlugins::OrthancJob::Submit(job.release(), priority);
+
+  Json::Value answer = Json::objectValue;
+  answer["ID"] = jobId;
+  answer["Path"] = "/jobs/" + jobId;
+  std::string s = answer.toStyledString();
+  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+}
+
+void RegisterRestEndpoint()
+{
+  OrthancPlugins::RegisterRestCallback<HandleStableEvents>(SaolaConfiguration::Instance().GetRoot() + "event-queues", true);
+  OrthancPlugins::RegisterRestCallback<DeleteOrResetStableEvent>(SaolaConfiguration::Instance().GetRoot() + "event-queues/([^/]*)", true);
+  OrthancPlugins::RegisterRestCallback<UpdateTransferJobs>(SaolaConfiguration::Instance().GetRoot() + "transfer-jobs/([^/]*)/([^/]*)", true);
+  OrthancPlugins::RegisterRestCallback<ExportSingleResource>(SaolaConfiguration::Instance().GetRoot() + "export", true);
+}
 
 // void ResetFailedJobs(OrthancPluginRestOutput *output,
 //                      const char *url,
 //                      const OrthancPluginHttpRequest *request)
 // {
 //   OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
-  
 
 //   Json::Value requestBody;
 //   OrthancPlugins::ReadJson(requestBody, request->body, request->bodySize);
@@ -257,7 +385,6 @@ void UpdateTransferJobs(OrthancPluginRestOutput *output,
 //   std::string s = answer.toStyledString();
 //   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
 // }
-
 
 // void SaveFailedJob(OrthancPluginRestOutput *output,
 //                    const char *url,
@@ -375,7 +502,6 @@ void UpdateTransferJobs(OrthancPluginRestOutput *output,
 //   }
 // }
 
-
 // void RetryFailedJobs(OrthancPluginRestOutput *output,
 //                      const char *url,
 //                      const OrthancPluginHttpRequest *request)
@@ -427,7 +553,7 @@ void UpdateTransferJobs(OrthancPluginRestOutput *output,
 //       else
 //       {
 //         ok = false;
-//       }    
+//       }
 //     }
 //     catch (std::exception& e)
 //     {
@@ -435,7 +561,7 @@ void UpdateTransferJobs(OrthancPluginRestOutput *output,
 //       ok = false;
 //     }
 //   }
-    
+
 //   if (!ok)
 //   {
 //     // Increase retry
