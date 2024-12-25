@@ -7,6 +7,7 @@ struct StableEventDTOCreate
   const char* resource_id_;
   const char* resouce_type_;
   const char* app_id_;
+  const char* app_type_;
   int         delay_ = 0;
   StableEventDTOCreate()
   {}

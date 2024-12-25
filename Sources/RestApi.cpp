@@ -178,6 +178,7 @@ static void SaveStableEvent(OrthancPluginRestOutput *output,
   dto.resource_id_ = requestBody["resource_id"].asCString();
   dto.resouce_type_ = requestBody["resource_type"].asCString();
   dto.app_id_ = requestBody["app"].asCString();
+  dto.app_type_ = app.type_.c_str();
   dto.delay_ = app.delay_;
   if (requestBody.isMember("delay"))
   {
@@ -216,13 +217,26 @@ void ResetStableEvents(OrthancPluginRestOutput *output,
 {
   OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
 
-  if (request->method != OrthancPluginHttpMethod_Get)
+  if (request->method != OrthancPluginHttpMethod_Post)
   {
-    return OrthancPluginSendMethodNotAllowed(context, output, "Get");
+    return OrthancPluginSendMethodNotAllowed(context, output, "Post");
+  }
+
+  Json::Value requestBody;
+  OrthancPlugins::ReadJson(requestBody, request->body, request->bodySize);
+
+  if (!requestBody.empty() && !requestBody.isArray())
+  {
+    return OrthancPluginSendHttpStatusCode(context, output, 400);
+  }
+  std::list<int64_t> ids;
+  for (const auto& id : requestBody)
+  {
+    ids.push_back(id.asInt64());
   }
 
   Json::Value answer = Json::objectValue;
-  answer["result"] = SaolaDatabase::Instance().ResetEvents();
+  answer["result"] = SaolaDatabase::Instance().ResetEvents(ids);
   std::string s = answer.toStyledString();
 
   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
@@ -253,7 +267,7 @@ void DeleteOrResetStableEvent(OrthancPluginRestOutput *output,
 {
   OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
 
-  if (request->method == OrthancPluginHttpMethod_Get && request->groupsCount == 1 && std::string("reset").compare(request->groups[0]) == 0)
+  if (request->method == OrthancPluginHttpMethod_Post && request->groupsCount == 1 && std::string("reset").compare(request->groups[0]) == 0)
   {
     return ResetStableEvents(output, url, request);
   }

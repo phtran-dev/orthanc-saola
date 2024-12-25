@@ -7,11 +7,11 @@
 #include <SQLite/Transaction.h>
 #include <boost/algorithm/string/join.hpp>
 
-void SaolaDatabase::AddFileInternal(const std::string& path,
+void SaolaDatabase::AddFileInternal(const std::string &path,
                                     const std::time_t time,
                                     const uintmax_t size,
                                     bool isDicom,
-                                    const std::string& instanceId)
+                                    const std::string &instanceId)
 {
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
@@ -28,7 +28,6 @@ void SaolaDatabase::AddFileInternal(const std::string& path,
   transaction.Commit();
 }
 
-
 void SaolaDatabase::Initialize()
 {
   {
@@ -44,7 +43,7 @@ void SaolaDatabase::Initialize()
 
     transaction.Commit();
   }
-    
+
   // Performance tuning of SQLite with PRAGMAs
   // http://www.sqlite.org/pragma.html
   db_.Execute("PRAGMA SYNCHRONOUS=NORMAL;");
@@ -53,14 +52,12 @@ void SaolaDatabase::Initialize()
   db_.Execute("PRAGMA WAL_AUTOCHECKPOINT=1000;");
 }
 
-
-void SaolaDatabase::Open(const std::string& path)
+void SaolaDatabase::Open(const std::string &path)
 {
   boost::mutex::scoped_lock lock(mutex_);
   db_.Open(path);
   Initialize();
 }
-  
 
 void SaolaDatabase::OpenInMemory()
 {
@@ -68,11 +65,11 @@ void SaolaDatabase::OpenInMemory()
   db_.OpenInMemory();
   Initialize();
 }
-  
-bool SaolaDatabase::GetById(int64_t id, StableEventDTOGet& result)
+
+bool SaolaDatabase::GetById(int64_t id, StableEventDTOGet &result)
 {
-boost::mutex::scoped_lock lock(mutex_);
-    
+  boost::mutex::scoped_lock lock(mutex_);
+
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
 
@@ -92,16 +89,15 @@ boost::mutex::scoped_lock lock(mutex_);
     result.creation_time_ = statement.ColumnString(8);
     ok = true;
   }
-        
+
   transaction.Commit();
   return ok;
 }
 
-
-void SaolaDatabase::FindAll(const Pagination& page, std::list<StableEventDTOGet>& results)
+void SaolaDatabase::FindAll(const Pagination &page, std::list<StableEventDTOGet> &results)
 {
   boost::mutex::scoped_lock lock(mutex_);
-    
+
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
 
@@ -116,26 +112,27 @@ void SaolaDatabase::FindAll(const Pagination& page, std::list<StableEventDTOGet>
                         statement.ColumnString(2),
                         statement.ColumnString(3),
                         statement.ColumnString(4),
-                        statement.ColumnInt(5),
+                        statement.ColumnString(5),
                         statement.ColumnInt(6),
-                        statement.ColumnString(7),
-                        statement.ColumnString(8));
+                        statement.ColumnInt(7),
+                        statement.ColumnString(8),
+                        statement.ColumnString(9));
 
     results.push_back(r);
   }
-        
+
   transaction.Commit();
 }
 
-void SaolaDatabase::FindByRetryLessThan(int retry, std::list<StableEventDTOGet>& results)
+void SaolaDatabase::FindByRetryLessThan(int retry, std::list<StableEventDTOGet> &results)
 {
   boost::mutex::scoped_lock lock(mutex_);
-    
+
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
 
-  Orthanc::SQLite::Statement statement(db_, "SELECT * FROM StableEventQueues WHERE retry <= ? ORDER BY retry DESC");
-  
+  Orthanc::SQLite::Statement statement(db_, "SELECT * FROM StableEventQueues WHERE retry <= ? ORDER BY retry ASC");
+
   statement.BindInt(0, retry);
 
   while (statement.Step())
@@ -145,48 +142,88 @@ void SaolaDatabase::FindByRetryLessThan(int retry, std::list<StableEventDTOGet>&
                         statement.ColumnString(2),
                         statement.ColumnString(3),
                         statement.ColumnString(4),
-                        statement.ColumnInt(5),
+                        statement.ColumnString(5),
                         statement.ColumnInt(6),
-                        statement.ColumnString(7),
-                        statement.ColumnString(8));
+                        statement.ColumnInt(7),
+                        statement.ColumnString(8),
+                        statement.ColumnString(9));
 
     results.push_back(r);
   }
-        
+
   transaction.Commit();
 }
 
-int64_t SaolaDatabase::AddEvent(const StableEventDTOCreate& obj)
+void SaolaDatabase::FindByAppTypeInRetryLessThan(const std::list<std::string>& appTypes, bool included, int retry, std::list<StableEventDTOGet>& results)
 {
   boost::mutex::scoped_lock lock(mutex_);
-    
+
+  Orthanc::SQLite::Transaction transaction(db_);
+  transaction.Begin();
+  
+  std::string str = boost::algorithm::join(appTypes, "\",\"");
+
+  std::string sql = "SELECT * FROM StableEventQueues WHERE app_type IN (\"" + str + "\") AND retry <= ? ORDER BY retry ASC LIMIT 1000";
+  if (!included)
+  {
+    sql = "SELECT * FROM StableEventQueues WHERE app_type NOT IN (\"" + str + "\") AND retry <= ? ORDER BY retry ASC LIMIT 1000";
+  }
+
+  Orthanc::SQLite::Statement statement(db_, sql);
+
+  statement.BindInt(0, retry);
+
+  while (statement.Step())
+  {
+    StableEventDTOGet r(statement.ColumnInt64(0),
+                        statement.ColumnString(1),
+                        statement.ColumnString(2),
+                        statement.ColumnString(3),
+                        statement.ColumnString(4),
+                        statement.ColumnString(5),
+                        statement.ColumnInt(6),
+                        statement.ColumnInt(7),
+                        statement.ColumnString(8),
+                        statement.ColumnString(9));
+
+    results.push_back(r);
+  }
+
+  transaction.Commit();
+}
+
+int64_t SaolaDatabase::AddEvent(const StableEventDTOCreate &obj)
+{
+  boost::mutex::scoped_lock lock(mutex_);
+
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
   {
     Orthanc::SQLite::Statement statement(db_, SQLITE_FROM_HERE,
-                                         "INSERT INTO StableEventQueues (iuid, resource_id, resource_type, app_id, delay_sec, creation_time) VALUES(?, ?, ?, ?, ?, ?)");
+                                         "INSERT INTO StableEventQueues (iuid, resource_id, resource_type, app_id, app_type, delay_sec, creation_time) VALUES(?, ?, ?, ?, ?, ?, ?)");
     statement.BindString(0, obj.iuid_);
     statement.BindString(1, obj.resource_id_);
     statement.BindString(2, obj.resouce_type_);
     statement.BindString(3, obj.app_id_);
-    statement.BindInt(4, obj.delay_);
-    statement.BindString(5, boost::posix_time::to_iso_string(GetNow()));
+    statement.BindString(4, obj.app_type_);
+    statement.BindInt(5, obj.delay_);
+    statement.BindString(6, boost::posix_time::to_iso_string(GetNow()));
     statement.Run();
   }
-  
+
   transaction.Commit();
   return db_.GetLastInsertRowId();
 }
 
-bool SaolaDatabase::DeleteEventByIds(const std::list<int64_t>& ids)
+bool SaolaDatabase::DeleteEventByIds(const std::list<int64_t> &ids)
 {
   std::list<std::string> ids_;
-  for (const auto& id : ids)
+  for (const auto &id : ids)
   {
     ids_.push_back(std::to_string(id));
   }
   boost::mutex::scoped_lock lock(mutex_);
-    
+
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
   bool ok = true;
@@ -195,15 +232,15 @@ bool SaolaDatabase::DeleteEventByIds(const std::list<int64_t>& ids)
     statement.BindString(0, boost::algorithm::join(ids_, ","));
     ok = statement.Run();
   }
-  
+
   transaction.Commit();
   return ok;
 }
 
-bool SaolaDatabase::DeleteEventByIds(const std::string& ids)
+bool SaolaDatabase::DeleteEventByIds(const std::string &ids)
 {
   boost::mutex::scoped_lock lock(mutex_);
-    
+
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
   bool ok = true;
@@ -213,15 +250,15 @@ bool SaolaDatabase::DeleteEventByIds(const std::string& ids)
     Orthanc::SQLite::Statement statement(db_, sql);
     ok = statement.Run();
   }
-  
+
   transaction.Commit();
   return ok;
 }
 
-bool SaolaDatabase::UpdateEvent(const StableEventDTOUpdate& obj)
+bool SaolaDatabase::UpdateEvent(const StableEventDTOUpdate &obj)
 {
   boost::mutex::scoped_lock lock(mutex_);
-    
+
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
   {
@@ -232,36 +269,51 @@ bool SaolaDatabase::UpdateEvent(const StableEventDTOUpdate& obj)
     statement.BindInt64(2, obj.id_);
     statement.Run();
   }
-  
+
   transaction.Commit();
   return true;
 }
 
-bool SaolaDatabase::ResetEvents()
+bool SaolaDatabase::ResetEvents(const std::list<int64_t> &ids)
 {
   boost::mutex::scoped_lock lock(mutex_);
-    
+
+  std::list<std::string> ids_;
+  for (const auto &id : ids)
+  {
+    ids_.push_back(std::to_string(id));
+  }
+
+  std::string sql = "UPDATE StableEventQueues SET failed_reason=?, retry=?";
+  if (!ids_.empty())
+  {
+    sql = "UPDATE StableEventQueues SET failed_reason=?, retry=? WHERE id IN (?)";
+  }
+
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
   {
-    Orthanc::SQLite::Statement statement(db_, SQLITE_FROM_HERE,
-                                         "UPDATE StableEventQueues SET failed_reason=?, retry=?");
+    Orthanc::SQLite::Statement statement(db_, sql);
     statement.BindString(0, "Reset");
     statement.BindInt(1, 0);
+    if (!ids_.empty())
+    {
+      statement.BindString(2, boost::algorithm::join(ids_, ","));
+    }
     statement.Run();
   }
-  
+
   transaction.Commit();
   return true;
 }
 
-void SaolaDatabase::SaveTransferJob(const TransferJobDTOCreate& dto, TransferJobDTOGet& result)
+void SaolaDatabase::SaveTransferJob(const TransferJobDTOCreate &dto, TransferJobDTOGet &result)
 {
   boost::mutex::scoped_lock lock(mutex_);
-    
+
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
-  
+
   std::list<TransferJobDTOGet> existings;
   {
     Orthanc::SQLite::Statement statement(db_, "SELECT id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE id=? LIMIT 1");
@@ -293,23 +345,19 @@ void SaolaDatabase::SaveTransferJob(const TransferJobDTOCreate& dto, TransferJob
     statement.BindString(2, dto.id_);
     statement.Run();
 
-
     result.last_updated_time_ = boost::posix_time::to_iso_string(GetNow());
     result.creation_time_ = existings.front().creation_time_;
   }
-  
+
   transaction.Commit();
 
   result.id_ = dto.id_;
 }
 
-
-
-
 // void SaolaDatabase::FindAll(const Pagination& page, const FailedJobFilter& filter, std::list<FailedJobDTOGet>& results)
 // {
 //   boost::mutex::scoped_lock lock(mutex_);
-    
+
 //   Orthanc::SQLite::Transaction transaction(db_);
 //   transaction.Begin();
 
@@ -336,14 +384,14 @@ void SaolaDatabase::SaveTransferJob(const TransferJobDTOCreate& dto, TransferJob
 
 //     results.push_back(r);
 //   }
-        
+
 //   transaction.Commit();
 // }
 
-bool SaolaDatabase::ResetFailedJob(const std::list<std::string>& ids)
+bool SaolaDatabase::ResetFailedJob(const std::list<std::string> &ids)
 {
   boost::mutex::scoped_lock lock(mutex_);
-    
+
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
 
@@ -364,10 +412,10 @@ bool SaolaDatabase::ResetFailedJob(const std::list<std::string>& ids)
   return ok;
 }
 
-bool SaolaDatabase::DeleteTransferJobByIds(const std::list<std::string>& ids)
+bool SaolaDatabase::DeleteTransferJobByIds(const std::list<std::string> &ids)
 {
   boost::mutex::scoped_lock lock(mutex_);
-    
+
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
   bool ok = true;
@@ -378,7 +426,7 @@ bool SaolaDatabase::DeleteTransferJobByIds(const std::list<std::string>& ids)
     Orthanc::SQLite::Statement statement(db_, sql);
     ok = statement.Run();
   }
-  
+
   transaction.Commit();
   return ok;
 }
@@ -386,23 +434,22 @@ bool SaolaDatabase::DeleteTransferJobByIds(const std::list<std::string>& ids)
 bool SaolaDatabase::DeleteTransferJobsByQueueId(int64_t id)
 {
   boost::mutex::scoped_lock lock(mutex_);
-    
+
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
 
   Orthanc::SQLite::Statement statement(db_, "DELETE FROM TransferJobs WHERE queue_id=?");
   statement.BindInt64(0, id);
   statement.Run();
-  
+
   transaction.Commit();
   return true;
 }
 
-
-bool SaolaDatabase::GetById(const std::string& id, TransferJobDTOGet& result)
+bool SaolaDatabase::GetById(const std::string &id, TransferJobDTOGet &result)
 {
   boost::mutex::scoped_lock lock(mutex_);
-    
+
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
 
@@ -417,15 +464,15 @@ bool SaolaDatabase::GetById(const std::string& id, TransferJobDTOGet& result)
     result.creation_time_ = statement.ColumnString(3);
     ok = true;
   }
-        
-  transaction.Commit(); 
+
+  transaction.Commit();
   return ok;
 }
 
-bool SaolaDatabase::GetTransferJobsByByQueueId(int64_t id, std::list<TransferJobDTOGet>& results)
+bool SaolaDatabase::GetTransferJobsByByQueueId(int64_t id, std::list<TransferJobDTOGet> &results)
 {
   boost::mutex::scoped_lock lock(mutex_);
-    
+
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
 
@@ -442,13 +489,12 @@ bool SaolaDatabase::GetTransferJobsByByQueueId(int64_t id, std::list<TransferJob
     results.push_back(result);
     ok = true;
   }
-  transaction.Commit(); 
+  transaction.Commit();
 
-  return ok; 
+  return ok;
 }
 
-
-SaolaDatabase& SaolaDatabase::Instance()
+SaolaDatabase &SaolaDatabase::Instance()
 {
   static SaolaDatabase instance;
   return instance;

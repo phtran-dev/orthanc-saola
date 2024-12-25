@@ -182,7 +182,6 @@ namespace Saola
 
         // wait for the consumers (zip writer), no need to accumulate instances in memory if loaders are faster than writers
         that->bufferedInstancesSemaphore_.Acquire();
-
         try
         {
           boost::shared_ptr<std::string> dicomContent(new std::string());

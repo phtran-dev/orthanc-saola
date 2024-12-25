@@ -12,6 +12,7 @@ struct StableEventDTOGet
   std::string resource_id_;
   std::string resource_type_;
   std::string app_id_;
+  std::string app_type_;
   int         delay_sec_ = 0;
   int         retry_;
   std::string failed_reason_;
@@ -25,6 +26,7 @@ struct StableEventDTOGet
                     std::string&& resource_id,
                     std::string&& resource_type,
                     std::string&& app_id,
+                    std::string&& app_type,
                     int delay_sec,
                     int retry,
                     std::string&& failed_reason,
@@ -34,6 +36,7 @@ struct StableEventDTOGet
     resource_id_(resource_id),
     resource_type_(resource_type), 
     app_id_(app_id),
+    app_type_(app_type),
     delay_sec_(delay_sec), 
     retry_(retry), 
     failed_reason_(failed_reason), 

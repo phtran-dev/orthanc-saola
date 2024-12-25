@@ -19,6 +19,12 @@
 
 #include <boost/algorithm/string.hpp>
 
+constexpr const char *JOB_STATE_PENDING = "Pending";
+constexpr const char *JOB_STATE_RUNNING = "Running";
+constexpr const char *JOB_STATE_SUCCESS = "Success";
+
+static std::list<std::string> FIRST_PRIORITY_APP_TYPES = {"Ris", "StoreServer"};
+
 static void GetMainDicomTags(const std::string &resourceId, const Orthanc::ResourceType &resourceType, Json::Value &mainDicomTags)
 {
   Json::Value storeStatistics, studyStatistics, studyMetadata;
@@ -45,6 +51,7 @@ static void GetMainDicomTags(const std::string &resourceId, const Orthanc::Resou
       return;
     }
     break;
+
   default:
     return;
   }
@@ -236,9 +243,9 @@ static void ProcessTransferTask(const AppConfiguration &appConfig, const StableE
         if (OrthancPlugins::RestApiGet(response, "/jobs/" + job.id_, false) && !response.empty())
         {
           if (response.isMember("State") &&
-              (response["State"].asString() == "Pending" ||
-               response["State"].asString() == "Running" ||
-               response["State"].asString() == "Success"))
+              (response["State"].asString() == JOB_STATE_PENDING ||
+               response["State"].asString() == JOB_STATE_RUNNING ||
+               response["State"].asString() == JOB_STATE_SUCCESS))
           {
             LOG(INFO) << "[ProcessTransferTask] Do not process Task id=" << dto.id_ << " which has state=" << response.toStyledString();
             return;
@@ -301,92 +308,6 @@ static void ProcessTransferTask(const AppConfiguration &appConfig, const StableE
   }
 }
 
-// static void ProcessExporterTask(const AppConfiguration &appConfig, const StableEventDTOGet &dto)
-// {
-//   LOG(INFO) << "[ProcessExporterTask] process ProcessExporterTask id=" << dto.id_;
-//   Json::Value notification;
-//   dto.ToJson(notification);
-
-//   try
-//   {
-//     std::list<TransferJobDTOGet> jobs;
-
-//     // Check if still running
-//     if (SaolaDatabase::Instance().GetTransferJobsByByQueueId(dto.id_, jobs))
-//     {
-//       for (TransferJobDTOGet job : jobs)
-//       {
-//         Json::Value response;
-//         if (OrthancPlugins::RestApiGet(response, "/jobs/" + job.id_, false) && !response.empty())
-//         {
-//           if (response.isMember("State") &&
-//               (response["State"].asString() == "Pending" ||
-//                response["State"].asString() == "Running" ||
-//                response["State"].asString() == "Success"))
-//           {
-//             LOG(INFO) << "[ProcessExporterTask] Do not process Task id=" << dto.id_ << " which has state=" << response.toStyledString();
-//             return;
-//           }
-//         }
-//       }
-//     }
-
-//     Json::Value body;
-//     body.copy(appConfig.fieldValues_);
-//     body["Level"] = dto.resource_type_;
-//     body["ID"] = dto.resource_id_;
-
-//     LOG(INFO) << "[ProcessExporterTask] body=" << body.toStyledString() << ", url=" << appConfig.url_;
-//     Json::Value jobResponse;
-//     if (!OrthancPlugins::RestApiPost(jobResponse, appConfig.url_, body, true))
-//     {
-//       LOG(INFO) << "[ProcessExporterTask] response=" << jobResponse.toStyledString();
-//       SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, "Cannot POST to TRANSFER PLUGIN", dto.retry_ + 1));
-//       SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-//       // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
-//       {
-//         notification["Exception"] = "Cannot POST to EXPORTER PLUGIN.";
-//         return;
-//       }
-//     }
-
-//     // Save job
-//     TransferJobDTOGet result;
-//     SaolaDatabase::Instance().SaveTransferJob(TransferJobDTOCreate(jobResponse["ID"].asString(), dto.id_), result);
-//   }
-//   catch (Orthanc::OrthancException &e)
-//   {
-//     SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, e.What(), dto.retry_ + 1));
-//     SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-//     // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
-//     {
-//       notification["Exception"] = "Cannot POST to TRANSFER PLUGIN.";
-//       TelegramNotification::Instance().SendMessage(notification);
-//     }
-//   }
-//   catch (std::exception &e)
-//   {
-//     SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, e.what(), dto.retry_ + 1));
-//     SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-//     // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
-//     {
-//       notification["Exception"] = e.what();
-//       TelegramNotification::Instance().SendMessage(notification);
-//     }
-//   }
-//   catch (...)
-//   {
-//     SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, "Exception occurs but no specific reason", dto.retry_ + 1));
-//     SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-
-//     // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
-//     {
-//       notification["Exception"] = "Exception occurs but no specific reason";
-//       TelegramNotification::Instance().SendMessage(notification);
-//     }
-//   }
-// }
-
 static void ProcessExternalTask(const AppConfiguration &appConfig, const StableEventDTOGet &dto)
 {
   Json::Value notification;
@@ -441,6 +362,34 @@ static void ProcessExternalTask(const AppConfiguration &appConfig, const StableE
   }
 }
 
+static void MonitorTasks(const std::list<StableEventDTOGet> &tasks)
+{
+  for (const auto &task : tasks)
+  {
+    LOG(INFO) << "[MonitorTasks] Result {id=" << task.id_ << ", iuid=" << task.iuid_ << ", resource_id=" << task.resource_id_ << ", resource_type=" << task.resource_type_ << ", creation_time=" << task.creation_time_ << "}";
+
+    boost::posix_time::ptime t = boost::posix_time::from_iso_string(task.creation_time_);
+
+    LOG(INFO) << "[MonitorTasks] time elapsed: " << GetNow() - t << ", delay=" << task.delay_sec_;
+
+    if (GetNow() - t < boost::posix_time::seconds(task.delay_sec_))
+    {
+      continue;
+    }
+
+    AppConfiguration appConfig;
+    SaolaConfiguration::Instance().GetAppConfigurationById(task.app_id_, appConfig);
+    if (appConfig.type_ == "Transfer" || appConfig.type_ == "Exporter")
+    {
+      ProcessTransferTask(appConfig, task);
+    }
+    else
+    {
+      ProcessExternalTask(appConfig, task);
+    }
+  }
+}
+
 StableEventScheduler &StableEventScheduler::Instance()
 {
   static StableEventScheduler instance;
@@ -459,31 +408,17 @@ StableEventScheduler::~StableEventScheduler()
 void StableEventScheduler::MonitorDatabase()
 {
   LOG(INFO) << "[StableEventScheduler::MonitorDatabase] Start monitoring ...";
-  std::list<StableEventDTOGet> results;
-  SaolaDatabase::Instance().FindByRetryLessThan(SaolaConfiguration::Instance().GetMaxRetry(), results);
-  for (const auto &a : results)
+
   {
-    LOG(INFO) << "[MonitorDatabase] Result {id=" << a.id_ << ", iuid=" << a.iuid_ << ", resource_id=" << a.resource_id_ << ", resource_type=" << a.resource_type_ << ", creation_time=" << a.creation_time_ << "}";
+    std::list<StableEventDTOGet> results;
+    SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, true, SaolaConfiguration::Instance().GetMaxRetry(), results);
+    MonitorTasks(results);
+  }
 
-    boost::posix_time::ptime t = boost::posix_time::from_iso_string(a.creation_time_);
-
-    LOG(INFO) << "[MonitorDatabase] time elapsed: " << GetNow() - t << ", delay=" << a.delay_sec_;
-
-    if (GetNow() - t < boost::posix_time::seconds(a.delay_sec_))
-    {
-      continue;
-    }
-
-    AppConfiguration appConfig;
-    SaolaConfiguration::Instance().GetAppConfigurationById(a.app_id_, appConfig);
-    if (appConfig.type_ == "Transfer" || appConfig.type_ == "Exporter")
-    {
-      ProcessTransferTask(appConfig, a);
-    }
-    else
-    {
-      ProcessExternalTask(appConfig, a);
-    }
+  {
+    std::list<StableEventDTOGet> results;
+    SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), results);
+    MonitorTasks(results);
   }
 }
 

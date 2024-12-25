@@ -89,13 +89,15 @@ public:
 
   bool UpdateEvent(const StableEventDTOUpdate& obj);
 
-  bool ResetEvents();
+  bool ResetEvents(const std::list<int64_t>& ids);
 
   bool GetById(int64_t id, StableEventDTOGet& result);
 
   void FindAll(const Pagination& page, std::list<StableEventDTOGet>& results);
 
   void FindByRetryLessThan(int retry, std::list<StableEventDTOGet>& results);
+
+  void FindByAppTypeInRetryLessThan(const std::list<std::string>& appType, bool included, int retry, std::list<StableEventDTOGet>& results);
 
   void SaveTransferJob(const TransferJobDTOCreate& dto, TransferJobDTOGet& result);
 

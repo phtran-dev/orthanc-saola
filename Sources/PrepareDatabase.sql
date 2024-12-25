@@ -4,6 +4,7 @@ CREATE TABLE StableEventQueues(
   resource_id TEXT NOT NULL,
   resource_type VARCHAR(10) NOT NULL,
   app_id TEXT NOT NULL,
+  app_type VARCHAR(30) NOT NULL,
   delay_sec INTEGER DEFAULT 0,
   retry INTEGER DEFAULT 0,
   failed_reason TEXT,
