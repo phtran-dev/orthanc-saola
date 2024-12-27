@@ -118,7 +118,8 @@
           "Type": "Transfer",
           "Delay": 0, // Delay in seconds
           "Url": "/transfers/send",
-          "FieldValues": [{"Peer": "orthanc32"}]
+          "FieldValues": [{"Peer": "orthanc32"}],
+          "LuaFunction": ""
       },
       {
         "Id": "StoreServer1",

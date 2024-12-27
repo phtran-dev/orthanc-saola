@@ -29,6 +29,8 @@ struct AppConfiguration
 
   Json::Value fieldValues_;
 
+  std::string luaCallback_ = "";
+
   AppConfiguration()
   {
   }
@@ -47,6 +49,7 @@ struct AppConfiguration
       that.fieldMapping_[m.first] = m.second;
     }
     that.fieldValues_.copy(this->fieldValues_);
+    that.luaCallback_ = this->luaCallback_;
   }
 
 };

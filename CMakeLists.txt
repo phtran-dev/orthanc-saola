@@ -19,7 +19,7 @@ cmake_minimum_required(VERSION 2.8)
 
 project(OrthancSaola)
 
-set(ORTHANC_PLUGIN_VERSION "1.2.0")
+set(ORTHANC_PLUGIN_VERSION "1.2.1")
 
 if (ORTHANC_PLUGIN_VERSION STREQUAL "mainline")
   set(ORTHANC_FRAMEWORK_DEFAULT_VERSION "mainline")
@@ -73,6 +73,7 @@ else()
   set(ENABLE_GOOGLE_TEST ON)
   set(ENABLE_SQLITE ON)
   set(ENABLE_ZLIB ON)
+  set(ENABLE_LUA OFF)
   set(ENABLE_DCMTK OFF)
   set(ENABLE_LOCALE OFF)         # Disable support for locales (notably in Boost)
   set(ENABLE_MODULE_IMAGES OFF CACHE INTERNAL "")

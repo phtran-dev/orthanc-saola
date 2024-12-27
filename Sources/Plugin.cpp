@@ -101,7 +101,7 @@ extern "C"
     {
       OrthancPlugins::OrthancConfiguration configuration;
       std::string folder = configuration.GetStringValue(STORAGE_DIRECTORY, ORTHANC_STORAGE);
-      ;
+
       Orthanc::SystemToolbox::MakeDirectory(folder);
       std::string path = (boost::filesystem::path(folder) / "saola-plugin.db").string();
 

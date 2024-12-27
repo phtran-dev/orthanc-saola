@@ -230,7 +230,7 @@ void ResetStableEvents(OrthancPluginRestOutput *output,
     return OrthancPluginSendHttpStatusCode(context, output, 400);
   }
   std::list<int64_t> ids;
-  for (const auto& id : requestBody)
+  for (const auto &id : requestBody)
   {
     ids.push_back(id.asInt64());
   }
@@ -342,10 +342,10 @@ void ExportSingleResource(OrthancPluginRestOutput *output,
   {
     return OrthancPluginSendMethodNotAllowed(context, output, "POST");
   }
-  
+
   Json::Value requestBody;
   OrthancPlugins::ReadJson(requestBody, request->body, request->bodySize);
-  
+
   std::string exportDirectory = requestBody["ExportDir"].asString();
   std::string resource = requestBody["Level"].asString();
   Orthanc::Toolbox::ToUpperCase(resource);
@@ -368,12 +368,92 @@ void ExportSingleResource(OrthancPluginRestOutput *output,
   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
 }
 
+void DeleteStudyResource(OrthancPluginRestOutput *output,
+                         const char *url,
+                         const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+
+  if (request->method != OrthancPluginHttpMethod_Put)
+  {
+    return OrthancPluginSendMethodNotAllowed(context, output, "PUT");
+  }
+
+  Json::Value findData, resourceIds;
+  findData["Level"] = "Study";
+  findData["Query"]["StudyInstanceUID"] = request->groups[0];
+
+  OrthancPlugins::RestApiPost(resourceIds, "/tools/find", findData, false);
+
+  if (resourceIds.isNull() || resourceIds.empty())
+  {
+    OrthancPlugins::LogInfo("[DeleteStudyResource] Cannot find StudyInstanceUID " + std::string(request->groups[0]));
+    return OrthancPluginSendHttpStatusCode(context, output, 404);
+  }
+
+  Json::Value body;
+  OrthancPlugins::ReadJson(body, request->body, request->bodySize);
+
+  bool success = true;
+  for (const auto &resourceId : resourceIds)
+  {
+    OrthancPlugins::LogInfo("[DeleteStudyResource] Found resource id " + resourceId.asString() +
+                            " associated with StudyInstanceUID " + request->groups[0]);
+    success &= OrthancPlugins::RestApiDelete("/studies/" + resourceId.asString(), false);
+  }
+
+  OrthancPlugins::LogInfo(
+      "[DeleteStudyResource] Deleted studyInstanceUID " + std::string(request->groups[0]));
+  Json::Value storeStatistics, storeageUpdate;
+  OrthancPlugins::RestApiGet(storeStatistics, "/statistics", false);
+  storeageUpdate["size"] = storeStatistics["TotalDiskSizeMB"];
+  storeageUpdate["numOfStudies"] = storeStatistics["CountStudies"];
+
+  std::string answer = storeageUpdate.toStyledString();
+  OrthancPluginAnswerBuffer(context, output, answer.c_str(), answer.size(), "application/json");
+}
+
+void DicomStoreStudy(OrthancPluginRestOutput *output,
+                     const char *url,
+                     const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+
+  if (request->method != OrthancPluginHttpMethod_Post)
+  {
+    return OrthancPluginSendMethodNotAllowed(context, output, "Post");
+  }
+  const char *modalityId = request->groups[0];
+  Json::Value body;
+  OrthancPlugins::ReadJson(body, request->body, request->bodySize);
+
+  if (body.type() != Json::arrayValue)
+    throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "The request body must contain a string");
+
+  Json::Value resources = Json::arrayValue;
+  for (const auto &val : body)
+  {
+    const char *resourceId = OrthancPluginLookupStudy(context, val.asCString());
+    resources.append(resourceId);
+  }
+
+  Json::Value result;
+  bool post = OrthancPlugins::RestApiPost(result, "/modalities/" + std::string(modalityId) + "/store", resources,
+                                          false);
+  if (post)
+    OrthancPluginSendHttpStatusCode(context, output, 200);
+  else
+    OrthancPluginSendHttpStatusCode(context, output, 500);
+}
+
 void RegisterRestEndpoint()
 {
   OrthancPlugins::RegisterRestCallback<HandleStableEvents>(SaolaConfiguration::Instance().GetRoot() + "event-queues", true);
   OrthancPlugins::RegisterRestCallback<DeleteOrResetStableEvent>(SaolaConfiguration::Instance().GetRoot() + "event-queues/([^/]*)", true);
   OrthancPlugins::RegisterRestCallback<UpdateTransferJobs>(SaolaConfiguration::Instance().GetRoot() + "transfer-jobs/([^/]*)/([^/]*)", true);
   OrthancPlugins::RegisterRestCallback<ExportSingleResource>(SaolaConfiguration::Instance().GetRoot() + "export", true);
+  OrthancPlugins::RegisterRestCallback<DeleteStudyResource>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/delete", true); // For compatibility
+  OrthancPlugins::RegisterRestCallback<DicomStoreStudy>(SaolaConfiguration::Instance().GetRoot() + "modalities/([^/]*)/store", true); // For compatibility
 }
 
 // void ResetFailedJobs(OrthancPluginRestOutput *output,

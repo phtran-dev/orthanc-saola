@@ -52,6 +52,11 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
       }
     }
 
+    if (appConfig.isMember("LuaCallback") && !appConfig["LuaCallback"].isNull() && !appConfig["LuaCallback"].empty())
+    {
+      app->luaCallback_ = appConfig["LuaCallback"].asString();
+    }
+
     app->type_ = appConfig["Type"].asString();
     app->url_ = appConfig["Url"].asString();
 
