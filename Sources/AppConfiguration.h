@@ -35,7 +35,7 @@ struct AppConfiguration
   {
   }
 
-  void clone(AppConfiguration& that) const
+  void Clone(AppConfiguration &that) const
   {
     that.id_ = this->id_;
     that.enable_ = this->enable_;
@@ -44,7 +44,7 @@ struct AppConfiguration
     that.url_ = this->url_;
     that.method_ = this->method_;
     that.authentication_ = this->authentication_;
-    for (const auto& m : this->fieldMapping_)
+    for (const auto &m : this->fieldMapping_)
     {
       that.fieldMapping_[m.first] = m.second;
     }
@@ -52,4 +52,22 @@ struct AppConfiguration
     that.luaCallback_ = this->luaCallback_;
   }
 
+  void ToJson(Json::Value &json)
+  {
+    json["id_"] = this->id_;
+    json["enable_"] = this->enable_;
+    json["type_"] = this->type_;
+    json["delay_"] = this->delay_;
+    json["timeOut_"] = this->timeOut_;
+    json["url_"] = this->url_;
+    json["authentication_"] = this->authentication_;
+    json["method_"] = this->method_;
+    json["fieldMapping_"] = Json::objectValue;
+    for (const auto &fm : this->fieldMapping_)
+    {
+      json["fieldMapping_"][fm.first] = fm.second;
+    }
+    json["fieldValues_"] = this->fieldValues_;
+    json["luaCallback_"] = this->luaCallback_;
+  }
 };

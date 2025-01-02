@@ -19,6 +19,12 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
 
   for (const auto &appConfig : saola.GetJson()["Apps"])
   {
+    // Validate configurations
+    if (!appConfig.isMember("Id") || !appConfig.isMember("Type") || !appConfig.isMember("Url") || !appConfig.isMember("Enable"))
+    {
+      LOG(ERROR) << "[SaolaConfiguration] Missing mandatory configurations: Id, Type, Url, Enable";
+    }
+
     if (!appConfig["Enable"].asBool())
     {
       continue;
@@ -160,7 +166,7 @@ bool SaolaConfiguration::GetAppConfigurationById(const std::string &id, AppConfi
   {
     if (app->id_ == id && app->enable_)
     {
-      app->clone(res);
+      app->Clone(res);
       return true;
     }
   }
@@ -180,4 +186,19 @@ bool SaolaConfiguration::IsEnabled() const
 const std::string &SaolaConfiguration::GetRoot() const
 {
   return this->root_;
+}
+
+void SaolaConfiguration::ToJson(Json::Value &json)
+{
+  json["enable_"] = this->enable_;
+  json["root_"] = this->root_;
+  json["maxRetry_"] = this->maxRetry_;
+  json["apps_"] = Json::arrayValue;
+
+  for (const auto &app : this->apps_)
+  {
+    Json::Value appJson;
+    app->ToJson(appJson);
+    json["apps_"].append(appJson);
+  }
 }

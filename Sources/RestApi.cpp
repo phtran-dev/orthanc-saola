@@ -103,6 +103,23 @@ namespace
 
 }
 
+static void GetConfigurations(OrthancPluginRestOutput *output,
+                              const char *url,
+                              const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+
+  if (request->method != OrthancPluginHttpMethod_Get)
+  {
+    return OrthancPluginSendMethodNotAllowed(context, output, "Get");
+  }
+
+  Json::Value answer;
+  SaolaConfiguration::Instance().ToJson(answer);
+  std::string s = answer.toStyledString();
+  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+}
+
 static void GetStableEvents(OrthancPluginRestOutput *output,
                             const char *url,
                             const OrthancPluginHttpRequest *request)
@@ -448,12 +465,13 @@ void DicomStoreStudy(OrthancPluginRestOutput *output,
 
 void RegisterRestEndpoint()
 {
+  OrthancPlugins::RegisterRestCallback<GetConfigurations>(SaolaConfiguration::Instance().GetRoot() + "configurations", true);
   OrthancPlugins::RegisterRestCallback<HandleStableEvents>(SaolaConfiguration::Instance().GetRoot() + "event-queues", true);
   OrthancPlugins::RegisterRestCallback<DeleteOrResetStableEvent>(SaolaConfiguration::Instance().GetRoot() + "event-queues/([^/]*)", true);
   OrthancPlugins::RegisterRestCallback<UpdateTransferJobs>(SaolaConfiguration::Instance().GetRoot() + "transfer-jobs/([^/]*)/([^/]*)", true);
   OrthancPlugins::RegisterRestCallback<ExportSingleResource>(SaolaConfiguration::Instance().GetRoot() + "export", true);
   OrthancPlugins::RegisterRestCallback<DeleteStudyResource>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/delete", true); // For compatibility
-  OrthancPlugins::RegisterRestCallback<DicomStoreStudy>(SaolaConfiguration::Instance().GetRoot() + "modalities/([^/]*)/store", true); // For compatibility
+  OrthancPlugins::RegisterRestCallback<DicomStoreStudy>(SaolaConfiguration::Instance().GetRoot() + "modalities/([^/]*)/store", true);   // For compatibility
 }
 
 // void ResetFailedJobs(OrthancPluginRestOutput *output,

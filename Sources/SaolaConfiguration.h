@@ -34,4 +34,6 @@ public:
   
   const std::string& GetRoot() const;
 
+  void ToJson(Json::Value& json);
+
 };
