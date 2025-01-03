@@ -32,6 +32,7 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
 
     std::shared_ptr<AppConfiguration> app = std::make_shared<AppConfiguration>();
     app->id_ = appConfig["Id"].asString();
+    app->enable_ = appConfig["Enable"].asBool();
     if (appConfig.isMember("Authentication"))
     {
       app->authentication_ = appConfig["Authentication"].asString();
