@@ -18,6 +18,7 @@
 
 #include "SaolaDatabase.h"
 #include "StableEventScheduler.h"
+#include "RemoveFileScheduler.h"
 #include "StableEventDTOCreate.h"
 #include "MainDicomTags.h"
 #include "SaolaConfiguration.h"
@@ -48,13 +49,14 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
   {
   case OrthancPluginChangeType_OrthancStarted:
   {
-
     StableEventScheduler::Instance().Start();
+    RemoveFileScheduler::Instance().Start();
     break;
   }
 
   case OrthancPluginChangeType_OrthancStopped:
     StableEventScheduler::Instance().Stop();
+    RemoveFileScheduler::Instance().Stop();
     break;
 
   case OrthancPluginChangeType_JobSuccess:

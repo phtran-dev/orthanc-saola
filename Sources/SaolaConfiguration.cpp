@@ -174,6 +174,11 @@ bool SaolaConfiguration::GetAppConfigurationById(const std::string &id, AppConfi
   return false;
 }
 
+const std::list<std::shared_ptr<AppConfiguration>>& SaolaConfiguration::GetApps() const
+{
+  return this->apps_;
+}
+
 int SaolaConfiguration::GetMaxRetry() const
 {
   return this->maxRetry_;

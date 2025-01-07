@@ -19,7 +19,7 @@ cmake_minimum_required(VERSION 2.8)
 
 project(OrthancSaola)
 
-set(ORTHANC_PLUGIN_VERSION "1.2.2")
+set(ORTHANC_PLUGIN_VERSION "1.2.3")
 
 if (ORTHANC_PLUGIN_VERSION STREQUAL "mainline")
   set(ORTHANC_FRAMEWORK_DEFAULT_VERSION "mainline")
@@ -138,6 +138,7 @@ add_library(OrthancSaola SHARED
   Resources/Orthanc/Plugins/OrthancPluginCppWrapper.cpp
   Sources/SaolaDatabase.cpp
   Sources/SaolaConfiguration.cpp
+  Sources/RemoveFileScheduler.cpp
   Sources/StableEventScheduler.cpp
   Sources/TelegramNotification.cpp
   Sources/RestApi.cpp

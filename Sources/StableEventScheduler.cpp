@@ -240,34 +240,38 @@ static void ProcessTransferTask(const AppConfiguration &appConfig, const StableE
       for (TransferJobDTOGet job : jobs)
       {
         Json::Value response;
-        if (OrthancPlugins::RestApiGet(response, "/jobs/" + job.id_, false) && !response.empty())
+        if (!OrthancPlugins::RestApiGet(response, "/jobs/" + job.id_, false) || response.empty())
         {
-          if (!response.isMember("State"))
-          {
-            SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, std::string("Job has no state: " + response.toStyledString()).c_str(), dto.retry_ + 1));
-            SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-            return;
-          }
+          SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, std::string("Cannot get job_id: " + job.id_).c_str(), dto.retry_ + 1));
+          SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
+          return;
+        }
 
-          if (response["State"].asString() == JOB_STATE_SUCCESS)
-          {
-            SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-            SaolaDatabase::Instance().DeleteEventByIds(std::list<int64_t>{dto.id_});
-            return;
-          }
+        if (!response.isMember("State"))
+        {
+          SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, std::string("Job has no state: " + response.toStyledString()).c_str(), dto.retry_ + 1));
+          SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
+          return;
+        }
 
-          if (response["State"].asString() == JOB_STATE_PENDING)
-          {
-            SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, std::string("Job " + job.id_ + " is PENDING").c_str(), dto.retry_ + 1));
-            SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-            return;
-          }
+        if (response["State"].asString() == JOB_STATE_SUCCESS)
+        {
+          SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
+          SaolaDatabase::Instance().DeleteEventByIds(std::list<int64_t>{dto.id_});
+          return;
+        }
 
-          if (response["State"].asString() == JOB_STATE_RUNNING)
-          {
-            LOG(INFO) << "[ProcessTransferTask] Do not process Task id=" << dto.id_ << " which has state=" << response.toStyledString();
-            return;
-          }
+        if (response["State"].asString() == JOB_STATE_PENDING)
+        {
+          SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, std::string("Job " + job.id_ + " is PENDING").c_str(), dto.retry_ + 1));
+          SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
+          return;
+        }
+
+        if (response["State"].asString() == JOB_STATE_RUNNING)
+        {
+          LOG(INFO) << "[ProcessTransferTask] Do not process Task id=" << dto.id_ << " which has state=" << response.toStyledString();
+          return;
         }
       }
     }

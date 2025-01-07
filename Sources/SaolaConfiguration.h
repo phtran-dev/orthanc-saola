@@ -28,6 +28,8 @@ public:
 
   bool GetAppConfigurationById(const std::string& id, AppConfiguration& res);
 
+  const std::list<std::shared_ptr<AppConfiguration>>& GetApps() const;
+
   bool IsEnabled() const;
 
   int GetMaxRetry() const;

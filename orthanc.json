@@ -122,6 +122,16 @@
           "LuaFunction": ""
       },
       {
+        "Id": "Exporter1",
+        "Enable": true,
+        "FieldMappingOverwrite": true,
+        "Type": "Exporter",
+        "Delay": 0, // Delay in seconds
+        "Url": "/itech/export",
+        "Method": "POST",
+        "FieldValues": [{"ExportDir": "/tmp/upload-dicom"}]
+      },
+      {
         "Id": "StoreServer1",
         "Enable": true,
         "FieldMappingOverwrite": false,
