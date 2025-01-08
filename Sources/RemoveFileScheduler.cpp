@@ -58,11 +58,13 @@ void RemoveFileScheduler::DeletePath(const std::string &path, int expirationDura
   // Be sure time
   if (now - lastModification < boost::posix_time::hours(expirationDuration_))
   {
+    LOG(INFO) << "[RemoveFileScheduler::DeletePath] path=" << path << " is not expired yet, expirationDuration_=" << expirationDuration_ << "(hours), now=" << now << ", lastModification=" << lastModification;
     return;
   }
 
   if (boost::filesystem::is_directory(path) && !boost::filesystem::is_empty(path))
   {
+    LOG(INFO) << "[RemoveFileScheduler::DeletePath] path=" << path << " is folder and not empty";
     return;
   }
 
@@ -80,17 +82,20 @@ void RemoveFileScheduler::DeletePath(const std::string &path, int expirationDura
 
 void RemoveFileScheduler::MonitorDirectories(const std::map<std::string, int> &folders)
 {
+  std::list<std::string> dirInfo;
+  for (const auto &folder : folders)
+  {
+    dirInfo.push_back(folder.first + ":" + std::to_string(folder.second) + "(hours)");
+  }
+
   while (this->m_state == State_Running)
   {
+    LOG(INFO) << "[RemoveFileScheduler::MonitorDirectories] Start monitoring and removing folders: " << boost::algorithm::join(dirInfo, ", ");
+
     std::stack<boost::filesystem::path> s;
+    for (const auto &folder : folders)
     {
-      std::list<std::string> l;
-      for (const auto &folder : folders)
-      {
-        s.push(folder.first);
-        l.push_back(folder.first);
-      }
-      LOG(INFO) << "[RemoveFileScheduler::MonitorDirectories] Start monitoring and removing folders: " << boost::algorithm::join(l, ",");
+      s.push(folder.first);
     }
 
     while (!s.empty())
@@ -186,7 +191,12 @@ void RemoveFileScheduler::Start()
         {
           expiredHours = app->fieldValues_[RETENTION_EXPIRED].asInt();
         }
-        directories.emplace(app->fieldValues_[EXPORTER_DIR].asString(), expiredHours);
+        std::string dir = app->fieldValues_[EXPORTER_DIR].asString();
+        if (!dir.empty() && dir.length() > 0 && dir[dir.length() - 1] != '/')
+        {
+          dir += '/';
+        }
+        directories.emplace(dir, expiredHours);
       }
     }
   }
