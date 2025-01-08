@@ -93,6 +93,10 @@ public:
 
   bool GetById(int64_t id, StableEventDTOGet& result);
 
+  bool GetByIds(const std::list<int64_t>& ids, std::list<StableEventDTOGet>& results);
+
+  bool GetByIds(const std::string& ids, std::list<StableEventDTOGet>& results);
+
   void FindAll(const Pagination& page, std::list<StableEventDTOGet>& results);
 
   void FindByRetryLessThan(int retry, std::list<StableEventDTOGet>& results);

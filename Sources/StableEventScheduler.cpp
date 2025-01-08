@@ -25,6 +25,9 @@ constexpr const char *JOB_STATE_SUCCESS = "Success";
 
 static std::list<std::string> FIRST_PRIORITY_APP_TYPES = {"Ris", "StoreServer"};
 
+static const std::string RIS_APP_TYPE = "Ris";
+static const std::string STORE_SERVER_APP_TYPE = "StoreServer";
+
 static void GetMainDicomTags(const std::string &resourceId, const Orthanc::ResourceType &resourceType, Json::Value &mainDicomTags)
 {
   Json::Value storeStatistics, studyStatistics, studyMetadata;
@@ -427,22 +430,6 @@ StableEventScheduler::~StableEventScheduler()
   }
 }
 
-void StableEventScheduler::MonitorDatabase()
-{
-  LOG(INFO) << "[StableEventScheduler::MonitorDatabase] Start monitoring ...";
-
-  {
-    std::list<StableEventDTOGet> results;
-    SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, true, SaolaConfiguration::Instance().GetMaxRetry(), results);
-    MonitorTasks(results);
-  }
-
-  {
-    std::list<StableEventDTOGet> results;
-    SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), results);
-    MonitorTasks(results);
-  }
-}
 
 void StableEventScheduler::Start()
 {
@@ -453,11 +440,29 @@ void StableEventScheduler::Start()
 
   this->m_state = State_Running;
   const auto intervalSeconds = 10;
-  this->m_worker = new std::thread([this, intervalSeconds]()
-                                   {
+  this->m_worker1 = new std::thread([this, intervalSeconds]()
+                                    {
     while (this->m_state == State_Running)
     {
-      this->MonitorDatabase();
+      LOG(INFO) << "[StableEventScheduler::MonitorDatabase] Start monitoring Ris/StoreServer tasks ...";
+      std::list<StableEventDTOGet> results;
+      SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, true, SaolaConfiguration::Instance().GetMaxRetry(), results);
+      MonitorTasks(results);
+
+      for (unsigned int i = 0; i < intervalSeconds * 10; i++)
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      }
+    } });
+
+  this->m_worker2 = new std::thread([this, intervalSeconds]()
+                                    {
+    while (this->m_state == State_Running)
+    {
+      LOG(INFO) << "[StableEventScheduler::MonitorDatabase] Start monitoring Transfer/Exporter tasks ...";
+      std::list<StableEventDTOGet> results;
+      SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), results);
+      MonitorTasks(results);
       for (unsigned int i = 0; i < intervalSeconds * 10; i++)
       {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -470,8 +475,16 @@ void StableEventScheduler::Stop()
   if (this->m_state == State_Running)
   {
     this->m_state = State_Done;
-    if (this->m_worker->joinable())
-      this->m_worker->join();
-    delete this->m_worker;
+    if (this->m_worker1->joinable())
+    {
+      this->m_worker1->join();
+    }
+    delete this->m_worker1;
+
+    if (this->m_worker2->joinable())
+    {
+      this->m_worker2->join();
+    }
+    delete this->m_worker2;
   }
 }

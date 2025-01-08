@@ -120,6 +120,33 @@ static void GetConfigurations(OrthancPluginRestOutput *output,
   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
 }
 
+static void GetStableEventByIds(OrthancPluginRestOutput *output,
+                                const char *url,
+                                const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+
+  if (request->method != OrthancPluginHttpMethod_Get)
+  {
+    return OrthancPluginSendMethodNotAllowed(context, output, "Get");
+  }
+
+  std::string event_ids = request->groups[0];
+  std::list<StableEventDTOGet> events;
+  SaolaDatabase::Instance().GetByIds(event_ids, events);
+
+  Json::Value answer = Json::arrayValue;
+  for (const auto &event : events)
+  {
+    Json::Value value;
+    event.ToJson(value);
+    answer.append(value);
+  }
+
+  std::string s = answer.toStyledString();
+  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+}
+
 static void GetStableEvents(OrthancPluginRestOutput *output,
                             const char *url,
                             const OrthancPluginHttpRequest *request)
@@ -209,6 +236,38 @@ static void SaveStableEvent(OrthancPluginRestOutput *output,
   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
 }
 
+void DeleteStableEvents(OrthancPluginRestOutput *output,
+                        const char *url,
+                        const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+
+  if (request->method != OrthancPluginHttpMethod_Post)
+  {
+    return OrthancPluginSendMethodNotAllowed(context, output, "Delete");
+  }
+
+  Json::Value requestBody;
+  OrthancPlugins::ReadJson(requestBody, request->body, request->bodySize);
+
+  if (!requestBody.empty() && !requestBody.isArray())
+  {
+    return OrthancPluginSendHttpStatusCode(context, output, 400);
+  }
+
+  std::list<int64_t> ids;
+  for (const auto &item : requestBody)
+  {
+    ids.push_back(item.asInt64());
+  }
+
+  SaolaDatabase::Instance().DeleteEventByIds(ids);
+
+  Json::Value answer = Json::objectValue;
+  std::string s = answer.toStyledString();
+  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+}
+
 void HandleStableEvents(OrthancPluginRestOutput *output,
                         const char *url,
                         const OrthancPluginHttpRequest *request)
@@ -257,43 +316,6 @@ void ResetStableEvents(OrthancPluginRestOutput *output,
   std::string s = answer.toStyledString();
 
   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
-}
-
-void DeleteStableEvent(OrthancPluginRestOutput *output,
-                       const char *url,
-                       const OrthancPluginHttpRequest *request)
-{
-  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
-
-  if (request->method != OrthancPluginHttpMethod_Delete)
-  {
-    return OrthancPluginSendMethodNotAllowed(context, output, "Delete");
-  }
-
-  std::string event_ids = request->groups[0];
-  SaolaDatabase::Instance().DeleteEventByIds(event_ids);
-
-  Json::Value answer = Json::objectValue;
-  std::string s = answer.toStyledString();
-  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
-}
-
-void DeleteOrResetStableEvent(OrthancPluginRestOutput *output,
-                              const char *url,
-                              const OrthancPluginHttpRequest *request)
-{
-  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
-
-  if (request->method == OrthancPluginHttpMethod_Post && request->groupsCount == 1 && std::string("reset").compare(request->groups[0]) == 0)
-  {
-    return ResetStableEvents(output, url, request);
-  }
-  else if (request->method == OrthancPluginHttpMethod_Delete)
-  {
-    return DeleteStableEvent(output, url, request);
-  }
-
-  return OrthancPluginSendMethodNotAllowed(context, output, "Get, Delete");
 }
 
 void UpdateTransferJobs(OrthancPluginRestOutput *output,
@@ -467,7 +489,9 @@ void RegisterRestEndpoint()
 {
   OrthancPlugins::RegisterRestCallback<GetConfigurations>(SaolaConfiguration::Instance().GetRoot() + "configurations", true);
   OrthancPlugins::RegisterRestCallback<HandleStableEvents>(SaolaConfiguration::Instance().GetRoot() + "event-queues", true);
-  OrthancPlugins::RegisterRestCallback<DeleteOrResetStableEvent>(SaolaConfiguration::Instance().GetRoot() + "event-queues/([^/]*)", true);
+  OrthancPlugins::RegisterRestCallback<DeleteStableEvents>(SaolaConfiguration::Instance().GetRoot() + "delete-event-queues", true);
+  OrthancPlugins::RegisterRestCallback<ResetStableEvents>(SaolaConfiguration::Instance().GetRoot() + "reset-event-queues", true);
+  OrthancPlugins::RegisterRestCallback<GetStableEventByIds>(SaolaConfiguration::Instance().GetRoot() + "event-queues/([^/]*)", true);
   OrthancPlugins::RegisterRestCallback<UpdateTransferJobs>(SaolaConfiguration::Instance().GetRoot() + "transfer-jobs/([^/]*)/([^/]*)", true);
   OrthancPlugins::RegisterRestCallback<ExportSingleResource>(SaolaConfiguration::Instance().GetRoot() + "export", true);
   OrthancPlugins::RegisterRestCallback<DeleteStudyResource>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/delete", true); // For compatibility

@@ -13,7 +13,9 @@ private:
     State_Done
   };
 
-  std::thread *m_worker;
+  std::thread *m_worker1;
+
+  std::thread *m_worker2;
 
   State m_state;
 
@@ -22,8 +24,6 @@ private:
   StableEventScheduler() : m_state(State_Setup)
   {
   }
-
-  void MonitorDatabase();
 
 public:
   static StableEventScheduler &Instance();
