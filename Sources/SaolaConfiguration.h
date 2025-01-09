@@ -16,6 +16,8 @@ private:
 
   int maxRetry_ = 5;
 
+  int interval_ = 5;
+
   std::string root_;
 
   std::list<std::shared_ptr<AppConfiguration>> apps_;
@@ -33,6 +35,8 @@ public:
   bool IsEnabled() const;
 
   int GetMaxRetry() const;
+
+  int GetInterval() const;
   
   const std::string& GetRoot() const;
 

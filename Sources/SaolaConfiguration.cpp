@@ -16,6 +16,7 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->enable_ = saola.GetBooleanValue("Enable", false);
   this->root_ = saola.GetStringValue("Root", "/saola/");
   this->maxRetry_ = saola.GetIntegerValue("MaxRetry", 5);
+  this->interval_ = saola.GetIntegerValue("Interval", 1);
 
   for (const auto &appConfig : saola.GetJson()["Apps"])
   {
@@ -182,6 +183,11 @@ const std::list<std::shared_ptr<AppConfiguration>>& SaolaConfiguration::GetApps(
 int SaolaConfiguration::GetMaxRetry() const
 {
   return this->maxRetry_;
+}
+
+int SaolaConfiguration::GetInterval() const
+{
+  return this->interval_;
 }
 
 bool SaolaConfiguration::IsEnabled() const

@@ -1,5 +1,5 @@
 #include "RestApi.h"
-
+#include "Constants.h"
 #include "SaolaConfiguration.h"
 #include "SaolaDatabase.h"
 
@@ -485,6 +485,119 @@ void DicomStoreStudy(OrthancPluginRestOutput *output,
     OrthancPluginSendHttpStatusCode(context, output, 500);
 }
 
+static bool CheckSplit(OrthancPluginContext *context, const std::string &studyId)
+{
+  // Check if studyInstanceUID is duplicated
+  {
+    Json::Value study;
+    OrthancPlugins::RestApiGet(study, "/studies/" + studyId, false);
+    if (study.empty())
+    {
+      return false;
+    }
+
+    char *result;
+    _OrthancPluginRetrieveDynamicString params;
+    params.argument = study["MainDicomTags"]["StudyInstanceUID"].asCString();
+    params.result = &result;
+
+    OrthancPluginErrorCode err = context->InvokeService(context, _OrthancPluginService_LookupStudy, &params);
+    if (err == OrthancPluginErrorCode_UnknownResource)
+    {
+      OrthancPlugins::LogWarning("[ITech][CheckDuplicatedStudies] Found multiple studies: " + study["MainDicomTags"]["StudyInstanceUID"].asString());
+      return true;
+    }
+  }
+
+  // Check if seriesInstanceUID is duplicated
+  Json::Value seriesList;
+  OrthancPlugins::RestApiGet(seriesList, "/studies/" + studyId + "/series", false);
+  for (auto &series : seriesList)
+  {
+    char *result;
+    _OrthancPluginRetrieveDynamicString params;
+    params.result = &result;
+    params.argument = series["MainDicomTags"]["SeriesInstanceUID"].asCString();
+
+    OrthancPluginErrorCode err = context->InvokeService(context, _OrthancPluginService_LookupSeries, &params);
+
+    if (err == OrthancPluginErrorCode_UnknownResource)
+    {
+      OrthancPlugins::LogWarning("[ITech][CheckDuplicatedSeries] Found multiple series: " + series["MainDicomTags"]["SeriesInstanceUID"].asString());
+      return true;
+    }
+  }
+  // Check if sopInstanceUID is duplicated
+  Json::Value instanceList;
+  OrthancPlugins::RestApiGet(instanceList, "/studies/" + studyId + "/instances", false);
+  for (auto &instance : instanceList)
+  {
+    char *result;
+    _OrthancPluginRetrieveDynamicString params;
+    params.result = &result;
+    params.argument = instance["MainDicomTags"]["SOPInstanceUID"].asCString();
+    OrthancPluginErrorCode err = context->InvokeService(context, _OrthancPluginService_LookupInstance, &params);
+    if (err == OrthancPluginErrorCode_UnknownResource)
+    {
+      OrthancPlugins::LogWarning("[ITech][CheckDuplicatedInstances] Found multiple instances: " + instance["MainDicomTags"]["SOPInstanceUID"].asString());
+      return true;
+    }
+  }
+  return false;
+}
+
+static void CheckStudyDuplicated(OrthancPluginRestOutput *output,
+                                 const char *url,
+                                 const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+  if (request->method != OrthancPluginHttpMethod_Get)
+  {
+    OrthancPluginSendMethodNotAllowed(context, output, "GET");
+    return;
+  }
+
+  std::string studyId{request->groups[0]};
+  Json::Value answer = Json::objectValue;
+  answer["result"] = CheckSplit(context, studyId);
+  std::string s = answer.toStyledString();
+  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+}
+
+void SplitStudy(OrthancPluginRestOutput *output,
+                const char *url,
+                const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+  if (request->method != OrthancPluginHttpMethod_Get)
+  {
+    OrthancPluginSendMethodNotAllowed(context, output, "GET");
+    return;
+  }
+
+  std::string studyId{request->groups[0]};
+
+  Json::Value instances;
+  OrthancPlugins::RestApiGet(instances, "/studies/" + studyId + "/instances", false);
+  std::string instanceId = instances[0]["ID"].asCString();
+  Json::Value instanceMetadata;
+  OrthancPlugins::RestApiGet(instanceMetadata, "/instances/" + instanceId + "/metadata?expand", false);
+
+  // Split study
+  Json::Value body = Json::objectValue;
+  body["Replace"] = Json::objectValue;
+  body["Replace"][IT_TAG_PrivateCreator] = IT_VAL_PrivateCreator;
+  body["Replace"][IT_TAG_SourceIpAddress] = instanceMetadata["RemoteIP"];
+  body["Replace"][IT_TAG_SourceApplicationEntityTitle] = instanceMetadata["RemoteAET"];
+  body["PrivateCreator"] = IT_VAL_PrivateCreator;
+
+  Json::Value answer;
+  OrthancPlugins::RestApiPost(answer, "/studies/" + studyId + "/modify", body, false);
+
+  std::string s = answer.toStyledString();
+  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+}
+
 void RegisterRestEndpoint()
 {
   OrthancPlugins::RegisterRestCallback<GetConfigurations>(SaolaConfiguration::Instance().GetRoot() + "configurations", true);
@@ -496,6 +609,8 @@ void RegisterRestEndpoint()
   OrthancPlugins::RegisterRestCallback<ExportSingleResource>(SaolaConfiguration::Instance().GetRoot() + "export", true);
   OrthancPlugins::RegisterRestCallback<DeleteStudyResource>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/delete", true); // For compatibility
   OrthancPlugins::RegisterRestCallback<DicomStoreStudy>(SaolaConfiguration::Instance().GetRoot() + "modalities/([^/]*)/store", true);   // For compatibility
+  OrthancPlugins::RegisterRestCallback<SplitStudy>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/split", true);   // For compatibility
+  OrthancPlugins::RegisterRestCallback<CheckStudyDuplicated>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/is-duplicated", true);   // For compatibility
 }
 
 // void ResetFailedJobs(OrthancPluginRestOutput *output,

@@ -831,6 +831,9 @@
     // "00e1,c2" : [ "UI", "PET-CT Multi Modality Name", 1, 1, "ELSCINT1" ]
     // "7053,03" : [ "ST", "Original Image Filename", 1, 1, "Philips PET Private Group" ]
     // "2001,5f" : [ "SQ", "StackSequence", 1, 1, "Philips Imaging DD 001" ]
+    "7379,0030" : [ "LO", "PrivateCreator1", 1, 1, "Itech" ],
+    "7379,3011" : [ "LO", "SourceIpAddress", 1, 1, "Itech" ],
+    "7379,3012" : [ "LO", "SourceApplicationEntityTitle", 1, 1, "Itech" ]
   },
 
   // Load a set of external DICOM dictionaries in order to replace the

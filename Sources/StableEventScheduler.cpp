@@ -119,7 +119,9 @@ static void GetMainDicomTags(const std::string &resourceId, const Orthanc::Resou
     if (mainDicomTags["RemoteAET"].isNull() || mainDicomTags["RemoteAET"].empty() || mainDicomTags["RemoteAET"].asString().empty())
     {
       if (!instanceTags[IT_SourceApplicationEntityTitle].empty())
-        mainDicomTags["aeTitle"] = instanceTags[IT_SourceApplicationEntityTitle];
+      {
+        mainDicomTags["RemoteAET"] = instanceTags[IT_SourceApplicationEntityTitle];
+      }
     }
     if (mainDicomTags["RemoteIP"].isNull() || mainDicomTags["RemoteIP"].empty() || mainDicomTags["RemoteAET"].asString().empty())
     {
@@ -439,8 +441,7 @@ void StableEventScheduler::Start()
   }
 
   this->m_state = State_Running;
-  const auto intervalSeconds = 10;
-  this->m_worker1 = new std::thread([this, intervalSeconds]()
+  this->m_worker1 = new std::thread([this]()
                                     {
     while (this->m_state == State_Running)
     {
@@ -449,13 +450,13 @@ void StableEventScheduler::Start()
       SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, true, SaolaConfiguration::Instance().GetMaxRetry(), results);
       MonitorTasks(results);
 
-      for (unsigned int i = 0; i < intervalSeconds * 10; i++)
+      for (int i = 0; i < SaolaConfiguration::Instance().GetInterval() * 10; i++)
       {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
       }
     } });
 
-  this->m_worker2 = new std::thread([this, intervalSeconds]()
+  this->m_worker2 = new std::thread([this]()
                                     {
     while (this->m_state == State_Running)
     {
@@ -463,7 +464,7 @@ void StableEventScheduler::Start()
       std::list<StableEventDTOGet> results;
       SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), results);
       MonitorTasks(results);
-      for (unsigned int i = 0; i < intervalSeconds * 10; i++)
+      for (int i = 0; i < SaolaConfiguration::Instance().GetInterval() * 10; i++)
       {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
       }
