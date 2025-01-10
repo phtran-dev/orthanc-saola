@@ -1,5 +1,7 @@
 #pragma once
 
+#include "StableEventDTOGet.h"
+
 #include <thread>
 #include <boost/noncopyable.hpp>
 
@@ -27,6 +29,8 @@ private:
 
 public:
   static StableEventScheduler &Instance();
+
+  bool ExecuteEvent(const StableEventDTOGet &event);
 
   ~StableEventScheduler();
 

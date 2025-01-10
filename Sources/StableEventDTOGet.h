@@ -3,6 +3,7 @@
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 #include <string>
+#include <sstream>
 
 struct StableEventDTOGet
 {
@@ -55,4 +56,12 @@ struct StableEventDTOGet
     json["failedReason"] = failed_reason_;
     json["creationTime"] = creation_time_;
   }
+
+  std::string ToJsonString() const
+  {
+    std::stringstream ss;
+    ss << "StableEventDTOGet {id=" << this->id_ << ", iuid=" << this->iuid_ << ", resource_id=" << this->resource_id_ << ", app_id_=" << this->app_id_ << ", app_type_=" << this->app_type_ << ", resource_type=" << this->resource_type_ << ", retry_=" << this->retry_ << ", creation_time=" << this->creation_time_ << "}";
+    return ss.str();
+  }
+
 };

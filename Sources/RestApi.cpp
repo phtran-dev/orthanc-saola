@@ -4,6 +4,7 @@
 #include "SaolaDatabase.h"
 
 #include "StableEventDTOUpdate.h"
+#include "StableEventScheduler.h"
 
 // #include "FailedJobDTOCreate.h"
 // #include "FailedJobDTOGet.h"
@@ -232,6 +233,73 @@ static void SaveStableEvent(OrthancPluginRestOutput *output,
   auto id = SaolaDatabase::Instance().AddEvent(dto);
   Json::Value answer = Json::objectValue;
   answer["id"] = id;
+  std::string s = answer.toStyledString();
+  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+}
+
+static void ExecuteStableEvents(OrthancPluginRestOutput *output,
+                                const char *url,
+                                const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+
+  if (request->method != OrthancPluginHttpMethod_Post)
+  {
+    return OrthancPluginSendMethodNotAllowed(context, output, "Post");
+  }
+
+  Json::Value requestBody;
+  OrthancPlugins::ReadJson(requestBody, request->body, request->bodySize);
+
+  if (!requestBody.isMember("iuid") &&
+      !requestBody.isMember("resource_id") &&
+      !requestBody.isMember("resource_type") &&
+      !requestBody.isMember("app"))
+  {
+    OrthancPluginSendHttpStatusCode(context, output, 400);
+    return;
+  }
+
+  AppConfiguration app;
+  if (!SaolaConfiguration::Instance().GetAppConfigurationById(requestBody["app"].asString(), app))
+  {
+    OrthancPluginSendHttpStatusCode(context, output, 400);
+    return;
+  }
+
+  StableEventDTOGet dto;
+  dto.id_ = -1; // Not existing
+  dto.iuid_ = requestBody["iuid"].asCString();
+  dto.resource_id_ = requestBody["resource_id"].asCString();
+  dto.resource_type_ = requestBody["resource_type"].asCString();
+  dto.app_id_ = requestBody["app"].asCString();
+  dto.app_type_ = app.type_.c_str();
+  dto.delay_sec_ = 0;
+  dto.retry_ = 0;
+
+  if (!StableEventScheduler::Instance().ExecuteEvent(dto))
+  {
+    StableEventDTOCreate dto;
+    dto.iuid_ = requestBody["iuid"].asCString();
+    dto.resource_id_ = requestBody["resource_id"].asCString();
+    dto.resouce_type_ = requestBody["resource_type"].asCString();
+    dto.app_id_ = requestBody["app"].asCString();
+    dto.app_type_ = app.type_.c_str();
+    dto.delay_ = app.delay_;
+    if (requestBody.isMember("delay"))
+    {
+      dto.delay_ = requestBody["delay"].asInt();
+    }
+
+    auto id = SaolaDatabase::Instance().AddEvent(dto);
+    Json::Value answer = Json::objectValue;
+    answer["id"] = id;
+    std::string s = answer.toStyledString();
+    OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+  }
+
+  Json::Value answer = Json::objectValue;
+  answer["status"] = true;
   std::string s = answer.toStyledString();
   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
 }
@@ -604,13 +672,14 @@ void RegisterRestEndpoint()
   OrthancPlugins::RegisterRestCallback<HandleStableEvents>(SaolaConfiguration::Instance().GetRoot() + "event-queues", true);
   OrthancPlugins::RegisterRestCallback<DeleteStableEvents>(SaolaConfiguration::Instance().GetRoot() + "delete-event-queues", true);
   OrthancPlugins::RegisterRestCallback<ResetStableEvents>(SaolaConfiguration::Instance().GetRoot() + "reset-event-queues", true);
+  OrthancPlugins::RegisterRestCallback<ExecuteStableEvents>(SaolaConfiguration::Instance().GetRoot() + "execute-event-queues", true);
   OrthancPlugins::RegisterRestCallback<GetStableEventByIds>(SaolaConfiguration::Instance().GetRoot() + "event-queues/([^/]*)", true);
   OrthancPlugins::RegisterRestCallback<UpdateTransferJobs>(SaolaConfiguration::Instance().GetRoot() + "transfer-jobs/([^/]*)/([^/]*)", true);
   OrthancPlugins::RegisterRestCallback<ExportSingleResource>(SaolaConfiguration::Instance().GetRoot() + "export", true);
-  OrthancPlugins::RegisterRestCallback<DeleteStudyResource>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/delete", true); // For compatibility
-  OrthancPlugins::RegisterRestCallback<DicomStoreStudy>(SaolaConfiguration::Instance().GetRoot() + "modalities/([^/]*)/store", true);   // For compatibility
-  OrthancPlugins::RegisterRestCallback<SplitStudy>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/split", true);   // For compatibility
-  OrthancPlugins::RegisterRestCallback<CheckStudyDuplicated>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/is-duplicated", true);   // For compatibility
+  OrthancPlugins::RegisterRestCallback<DeleteStudyResource>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/delete", true);         // For compatibility
+  OrthancPlugins::RegisterRestCallback<DicomStoreStudy>(SaolaConfiguration::Instance().GetRoot() + "modalities/([^/]*)/store", true);           // For compatibility
+  OrthancPlugins::RegisterRestCallback<SplitStudy>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/split", true);                   // For compatibility
+  OrthancPlugins::RegisterRestCallback<CheckStudyDuplicated>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/is-duplicated", true); // For compatibility
 }
 
 // void ResetFailedJobs(OrthancPluginRestOutput *output,

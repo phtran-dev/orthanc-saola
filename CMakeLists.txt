@@ -19,7 +19,7 @@ cmake_minimum_required(VERSION 2.8)
 
 project(OrthancSaola)
 
-set(ORTHANC_PLUGIN_VERSION "1.2.5")
+set(ORTHANC_PLUGIN_VERSION "1.2.6")
 
 if (ORTHANC_PLUGIN_VERSION STREQUAL "mainline")
   set(ORTHANC_FRAMEWORK_DEFAULT_VERSION "mainline")

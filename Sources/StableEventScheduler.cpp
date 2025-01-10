@@ -22,6 +22,11 @@
 constexpr const char *JOB_STATE_PENDING = "Pending";
 constexpr const char *JOB_STATE_RUNNING = "Running";
 constexpr const char *JOB_STATE_SUCCESS = "Success";
+constexpr const char *JOB_STATE_FAILURE = "Failure";
+constexpr const char *JOB_STATE_PAUSE = "Paused";
+constexpr const char *JOB_STATE_RETRY = "Retry";
+
+constexpr const char* EXCEPTION_KEY = "Exception";
 
 static std::list<std::string> FIRST_PRIORITY_APP_TYPES = {"Ris", "StoreServer"};
 
@@ -229,115 +234,115 @@ static void PrepareBody(Json::Value &body, const AppConfiguration &appConfig, co
   }
 }
 
-static void ProcessTransferTask(const AppConfiguration &appConfig, const StableEventDTOGet &dto)
+static bool ProcessTransferTask(const AppConfiguration &appConfig, const StableEventDTOGet &dto, Json::Value &notification)
 {
   LOG(INFO) << "[ProcessTransferTask] process ProcessTransferTask id=" << dto.id_;
-  Json::Value notification;
   dto.ToJson(notification);
-
   try
   {
     std::list<TransferJobDTOGet> jobs;
 
-    // Check if still running
-    if (SaolaDatabase::Instance().GetTransferJobsByByQueueId(dto.id_, jobs))
+    // Check All jobs' state. If JOB state is
+    // - Success --> Delete queue and its jobs
+    // - Running --> Do nothing and return
+    // - Pending, Failure, Paused, Retry --> Increase queue's retry by 1 and return
+    if (dto.id_ >= 0 && SaolaDatabase::Instance().GetTransferJobsByByQueueId(dto.id_, jobs))
     {
+      bool jobStateOk = false;
       for (TransferJobDTOGet job : jobs)
       {
         Json::Value response;
         if (!OrthancPlugins::RestApiGet(response, "/jobs/" + job.id_, false) || response.empty())
         {
-          SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, std::string("Cannot get job_id: " + job.id_).c_str(), dto.retry_ + 1));
-          SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-          return;
+          LOG(ERROR) << "[ProcessTransferTask] Cannot call API /jobs/" << job.id_ << ", or response empty";
+          continue;
         }
 
         if (!response.isMember("State"))
         {
-          SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, std::string("Job has no state: " + response.toStyledString()).c_str(), dto.retry_ + 1));
-          SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-          return;
+          LOG(ERROR) << "[ProcessTransferTask] API /jobs/" << job.id_ << ", Response body does not have \"State\"";
+          continue; // jobState is still JobState_Failure
         }
 
-        if (response["State"].asString() == JOB_STATE_SUCCESS)
+        if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Pending) ||
+            response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Failure) ||
+            response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Paused) ||
+            response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Retry))
         {
-          SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
+          LOG(ERROR) << "[ProcessTransferTask] API /jobs/" << job.id_ << ", Response body has State=" << response["State"].asString();
+          continue; // jobState is still JobState_Failure
+        }
+
+        if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Success))
+        {
+          LOG(INFO) << "[ProcessTransferTask] API /jobs/" << job.id_ << ", Response body has State=Success" << ", DELETING queue_id=" << std::to_string(dto.id_);
+          SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_); // dto.id_ >= 0 as condition in FOR loop
           SaolaDatabase::Instance().DeleteEventByIds(std::list<int64_t>{dto.id_});
-          return;
+          jobStateOk = true;
+          break; // break loop, jobState is now JobState_Success
         }
 
-        if (response["State"].asString() == JOB_STATE_PENDING)
+        if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Running))
         {
-          SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, std::string("Job " + job.id_ + " is PENDING").c_str(), dto.retry_ + 1));
-          SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-          return;
-        }
-
-        if (response["State"].asString() == JOB_STATE_RUNNING)
-        {
-          LOG(INFO) << "[ProcessTransferTask] Do not process Task id=" << dto.id_ << " which has state=" << response.toStyledString();
-          return;
+          LOG(INFO) << "[ProcessTransferTask] API /jobs/" << job.id_ << ", Response body has State=Running" << ", WAITING until it finishes";
+          jobStateOk = true;
+          break; // break loop, jobState is now JobState_Running
         }
       }
+
+      // If All jobs are failed then return FALSE immmediately
+      if (!jobStateOk)
+      {
+        notification[EXCEPTION_KEY] = "All Jobs are FAILED";
+        return false;
+      }
+
+      return true;
     }
 
     Json::Value body;
     PrepareBody(body, appConfig, dto);
 
-    LOG(INFO) << "[ProcessTransferTask] body=" << body.toStyledString() << ", url=" << appConfig.url_;
+    LOG(INFO) << "[ProcessTransferTask] Send to API: " << appConfig.url_ << ", body=" << body.toStyledString();
     Json::Value jobResponse;
     if (!OrthancPlugins::RestApiPost(jobResponse, appConfig.url_, body, true))
     {
-      LOG(INFO) << "[ProcessTransferTask] response=" << jobResponse.toStyledString();
-      SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, "Cannot POST to TRANSFER PLUGIN", dto.retry_ + 1));
-      SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-      // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
-      {
-        notification["Exception"] = "Cannot POST to TRANSFER PLUGIN.";
-        return;
-      }
+      LOG(ERROR) << "[ProcessTransferTask] Send to API: " << appConfig.url_ << " ,Failed response=" << jobResponse.toStyledString();
+      notification[EXCEPTION_KEY] = "Cannot POST to url=" + appConfig.url_;
+      return false;
     }
 
     // Save job
     TransferJobDTOGet result;
-    SaolaDatabase::Instance().SaveTransferJob(TransferJobDTOCreate(jobResponse["ID"].asString(), dto.id_), result);
+    if (dto.id_ >= 0)
+    {
+      SaolaDatabase::Instance().SaveTransferJob(TransferJobDTOCreate(jobResponse["ID"].asString(), dto.id_), result);
+      LOG(INFO) << "[ProcessTransferTask] Save JOB " << result.ToJsonString();
+    }
+    return true;
   }
   catch (Orthanc::OrthancException &e)
   {
-    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, e.What(), dto.retry_ + 1));
-    SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-    // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
-    {
-      notification["Exception"] = "Cannot POST to TRANSFER PLUGIN.";
-      TelegramNotification::Instance().SendMessage(notification);
-    }
+    LOG(ERROR) << "[ProcessTransferTask] Orthanc::OrthancException: " << e.What();
+    notification[EXCEPTION_KEY] = e.What();
+    return false;
   }
   catch (std::exception &e)
   {
-    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, e.what(), dto.retry_ + 1));
-    SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-    // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
-    {
-      notification["Exception"] = e.what();
-      TelegramNotification::Instance().SendMessage(notification);
-    }
+    LOG(ERROR) << "[ProcessTransferTask] std::exception: " << e.what();
+    notification[EXCEPTION_KEY] = e.what();
+    return false;
   }
   catch (...)
   {
-    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, "Exception occurs but no specific reason", dto.retry_ + 1));
-    SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_);
-
-    // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
-    {
-      notification["Exception"] = "Exception occurs but no specific reason";
-      TelegramNotification::Instance().SendMessage(notification);
-    }
+    LOG(ERROR) << "[ProcessTransferTask] Exception occurs but no specific reason";
+    notification[EXCEPTION_KEY] = "Exception occurs but no specific reason";
+    return false;
   }
 }
 
-static void ProcessExternalTask(const AppConfiguration &appConfig, const StableEventDTOGet &dto)
+static bool ProcessExternalTask(const AppConfiguration &appConfig, const StableEventDTOGet &dto, Json::Value &notification)
 {
-  Json::Value notification;
   notification["TaskType"] = appConfig.type_;
   notification["TaskContent"] = Json::objectValue;
   dto.ToJson(notification["TaskContent"]);
@@ -348,52 +353,51 @@ static void ProcessExternalTask(const AppConfiguration &appConfig, const StableE
     if (!mainDicomTags.empty())
     {
       ConstructAndSendMessage(appConfig, mainDicomTags);
-      SaolaDatabase::Instance().DeleteEventByIds(std::list<int64_t>{dto.id_});
-    }
-    else
-    {
-      SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, "Cannnot get MainDicomTag", dto.retry_ + 1));
-      // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
+      if (dto.id_ >= 0)
       {
-        notification["Exception"] = "Cannnot get MainDicomTag";
-        TelegramNotification::Instance().SendMessage(notification);
+        SaolaDatabase::Instance().DeleteEventByIds(std::list<int64_t>{dto.id_});
       }
+      return true;
     }
-  }
-  catch (std::exception &e)
-  {
-    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, e.what(), dto.retry_ + 1));
-    // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
-    {
-      notification["Exception"] = e.what();
-      TelegramNotification::Instance().SendMessage(notification);
-    }
+
+    notification[EXCEPTION_KEY] = "Cannot get MainDicomTag";
+    return false;
   }
   catch (Orthanc::OrthancException &e)
   {
-    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, e.What(), dto.retry_ + 1));
-    // if (dto.retry_>= SaolaConfiguration::Instance().GetMaxRetry())
-    {
-      notification["Exception"] = e.What();
-      TelegramNotification::Instance().SendMessage(notification);
-    }
+    notification[EXCEPTION_KEY] = e.What();
+    return false;
+  }
+  catch (std::exception &e)
+  {
+    notification[EXCEPTION_KEY] = e.what();
+    return false;
   }
   catch (...)
   {
-    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, "Exception with no reason found", dto.retry_ + 1));
-    // if (dto.retry_ >= SaolaConfiguration::Instance().GetMaxRetry())
-    {
-      notification["Exception"] = "Exception with no reason found";
-      TelegramNotification::Instance().SendMessage(notification);
-    }
+    notification[EXCEPTION_KEY] = "Exception with no reason found";
+    return false;
   }
+}
+
+bool StableEventScheduler::ExecuteEvent(const StableEventDTOGet &event)
+{
+  AppConfiguration appConfig;
+  SaolaConfiguration::Instance().GetAppConfigurationById(event.app_id_, appConfig);
+  Json::Value notification;
+  if (appConfig.type_ == "Transfer" || appConfig.type_ == "Exporter")
+  {
+    return ProcessTransferTask(appConfig, event, notification);
+  }
+
+  return ProcessExternalTask(appConfig, event, notification);
 }
 
 static void MonitorTasks(const std::list<StableEventDTOGet> &tasks)
 {
   for (const auto &task : tasks)
   {
-    LOG(INFO) << "[MonitorTasks] Result {id=" << task.id_ << ", iuid=" << task.iuid_ << ", resource_id=" << task.resource_id_ << ", resource_type=" << task.resource_type_ << ", creation_time=" << task.creation_time_ << "}";
+    LOG(INFO) << "[MonitorTasks] Result {id=" << task.ToJsonString();
 
     boost::posix_time::ptime t = boost::posix_time::from_iso_string(task.creation_time_);
 
@@ -406,13 +410,25 @@ static void MonitorTasks(const std::list<StableEventDTOGet> &tasks)
 
     AppConfiguration appConfig;
     SaolaConfiguration::Instance().GetAppConfigurationById(task.app_id_, appConfig);
+    Json::Value notification;
+    notification[EXCEPTION_KEY] = "";
     if (appConfig.type_ == "Transfer" || appConfig.type_ == "Exporter")
     {
-      ProcessTransferTask(appConfig, task);
+      if (!ProcessTransferTask(appConfig, task, notification))
+      {
+
+        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, notification[EXCEPTION_KEY].asCString(), task.retry_ + 1));
+        SaolaDatabase::Instance().DeleteTransferJobsByQueueId(task.id_);
+        TelegramNotification::Instance().SendMessage(notification);
+      }
     }
     else
     {
-      ProcessExternalTask(appConfig, task);
+      if (!ProcessExternalTask(appConfig, task, notification))
+      {
+        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, notification[EXCEPTION_KEY].asCString(), task.retry_ + 1));
+        TelegramNotification::Instance().SendMessage(notification);
+      }
     }
   }
 }
@@ -431,7 +447,6 @@ StableEventScheduler::~StableEventScheduler()
     Stop();
   }
 }
-
 
 void StableEventScheduler::Start()
 {

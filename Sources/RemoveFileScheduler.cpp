@@ -157,7 +157,8 @@ void RemoveFileScheduler::MonitorDirectories(const std::map<std::string, int> &f
         DeletePath(d.string(), GetRententionExpired(folders, d.string()));
       }
     }
-    int intervalSeconds = 60;
+
+    unsigned int intervalSeconds = 60;
     for (unsigned int i = 0; i < intervalSeconds * 10; i++)
     {
       if (this->m_state != State_Running)
@@ -208,7 +209,6 @@ void RemoveFileScheduler::Start()
   }
 
   this->m_state = State_Running;
-  const auto intervalSeconds = 10;
   this->m_worker = new std::thread([this, directories]()
                                    {
     while (this->m_state == State_Running)

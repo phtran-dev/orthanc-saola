@@ -811,11 +811,10 @@ namespace Saola
     virtual void AddInstance(const std::string &instanceId,
                              uint64_t uncompressedSize) ORTHANC_OVERRIDE
     {
-      char filename[24];
-      snprintf(filename, sizeof(filename) - 1, instanceFormat_, counter_);
+      // char filename[24];
+      // snprintf(filename, sizeof(filename) - 1, instanceFormat_, counter_);
       counter_++;
-
-      commands_.AddWriteInstance(filename, instanceId, uncompressedSize);
+      commands_.AddWriteInstance(instanceId + ".dcm", instanceId, uncompressedSize);
     }
   };
 
@@ -909,8 +908,8 @@ namespace Saola
                            const std::string &rootDir,
                            Orthanc::ResourceType jobLevel) : OrthancPlugins::OrthancJob("Exporter"),
                                                              archive_(new ArchiveIndex(GetArchiveResourceType(jobLevel))),
-                                                             rootDir_(rootDir),
-                                                             enableExtendedSopClass_(enableExtendedSopClass)
+                                                             enableExtendedSopClass_(enableExtendedSopClass),
+                                                             rootDir_(rootDir)
   {
   }
 
