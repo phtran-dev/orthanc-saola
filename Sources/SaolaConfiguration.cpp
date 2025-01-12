@@ -14,6 +14,8 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   configuration.GetSection(saola, "Saola");
 
   this->enable_ = saola.GetBooleanValue("Enable", false);
+  this->enableRemoveFile_ = saola.GetBooleanValue("EnableRemoveFile", false);
+  this->throttleExpirationDays_ = saola.GetIntegerValue("ThrottleExpirationDays", 2);
   this->root_ = saola.GetStringValue("Root", "/saola/");
   this->maxRetry_ = saola.GetIntegerValue("MaxRetry", 5);
   this->throttleDelayMs_ = saola.GetIntegerValue("ThrottleDelayMs", 100); // Default 100 milliseconds
@@ -174,7 +176,7 @@ const std::shared_ptr<AppConfiguration> SaolaConfiguration::GetAppConfigurationB
   return std::shared_ptr<AppConfiguration>();
 }
 
-const std::list<std::shared_ptr<AppConfiguration>>& SaolaConfiguration::GetApps() const
+const std::list<std::shared_ptr<AppConfiguration>> &SaolaConfiguration::GetApps() const
 {
   return this->apps_;
 }
@@ -192,6 +194,16 @@ int SaolaConfiguration::GetThrottleDelayMs() const
 bool SaolaConfiguration::IsEnabled() const
 {
   return this->enable_;
+}
+
+bool SaolaConfiguration::IsEnableRemoveFile() const
+{
+  return this->enableRemoveFile_;
+}
+
+int SaolaConfiguration::GetThrottleExpirationDays() const
+{
+  return this->throttleExpirationDays_;
 }
 
 const std::string &SaolaConfiguration::GetRoot() const

@@ -14,6 +14,10 @@ private:
 
   bool enable_;
 
+  bool enableRemoveFile_;
+
+  int throttleExpirationDays_;
+
   int maxRetry_ = 5;
 
   int throttleDelayMs_;
@@ -33,6 +37,10 @@ public:
   const std::list<std::shared_ptr<AppConfiguration>>& GetApps() const;
 
   bool IsEnabled() const;
+
+  bool IsEnableRemoveFile() const;
+
+  int GetThrottleExpirationDays() const;
 
   int GetMaxRetry() const;
 

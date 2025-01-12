@@ -116,7 +116,7 @@ void RemoveFileScheduler::MonitorDirectories(const std::map<std::string, int> &f
       }
       catch (boost::filesystem::filesystem_error &)
       {
-        LOG(WARNING) << "[RemoveFileScheduler::MonitorDirectories] Cannot read directory: " << d.string();
+        LOG(ERROR) << "[RemoveFileScheduler::MonitorDirectories] ERROR Cannot read directory: " << d.string();
         continue;
       }
 

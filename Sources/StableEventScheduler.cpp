@@ -471,7 +471,7 @@ void StableEventScheduler::Start()
                                     {
     while (this->m_state == State_Running)
     {
-      LOG(INFO) << "[StableEventScheduler::MonitorDatabase] Start monitoring Ris/StoreServer tasks ...";
+      LOG(TRACE) << "[StableEventScheduler::MonitorDatabase] Start monitoring Ris/StoreServer tasks ...";
       std::list<StableEventDTOGet> results;
       SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, true, SaolaConfiguration::Instance().GetMaxRetry(), results);
       MonitorTasks(results);
@@ -482,7 +482,7 @@ void StableEventScheduler::Start()
                                     {
     while (this->m_state == State_Running)
     {
-      LOG(INFO) << "[StableEventScheduler::MonitorDatabase] Start monitoring Transfer/Exporter tasks ...";
+      LOG(TRACE) << "[StableEventScheduler::MonitorDatabase] Start monitoring Transfer/Exporter tasks ...";
       std::list<StableEventDTOGet> results;
       SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), results);
       MonitorTasks(results);

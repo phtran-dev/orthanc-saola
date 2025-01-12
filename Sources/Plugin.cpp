@@ -40,7 +40,6 @@ static const char *const DATABASE = "Database";
 static const char *const ORTHANC_STORAGE = "OrthancStorage";
 static const char *const STORAGE_DIRECTORY = "StorageDirectory";
 
-
 static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeType,
                                                OrthancPluginResourceType resourceType,
                                                const char *resourceId)
@@ -50,13 +49,20 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
   case OrthancPluginChangeType_OrthancStarted:
   {
     StableEventScheduler::Instance().Start();
-    RemoveFileScheduler::Instance().Start();
+    if (SaolaConfiguration::Instance().IsEnableRemoveFile())
+    {
+      RemoveFileScheduler::Instance().Start();
+    }
+
     break;
   }
 
   case OrthancPluginChangeType_OrthancStopped:
     StableEventScheduler::Instance().Stop();
-    RemoveFileScheduler::Instance().Stop();
+    if (SaolaConfiguration::Instance().IsEnableRemoveFile())
+    {
+      RemoveFileScheduler::Instance().Stop();
+    }
     break;
 
   case OrthancPluginChangeType_JobSuccess:
