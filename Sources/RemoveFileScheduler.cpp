@@ -73,7 +73,7 @@ void RemoveFileScheduler::DeletePath(const std::string &path, int expirationDura
   boost::filesystem::remove_all(path, ec);
   if (ec)
   {
-    LOG(ERROR) << "[RemoveFileScheduler::DeleteFolder] Cannot delete path: " << path;
+    LOG(ERROR) << "[RemoveFileScheduler::DeleteFolder] ERROR Cannot delete path: " << path;
     return;
   }
 
@@ -144,7 +144,7 @@ void RemoveFileScheduler::MonitorDirectories(const std::map<std::string, int> &f
         }
         catch (boost::filesystem::filesystem_error &e)
         {
-          LOG(ERROR) << "[RemoveFileScheduler::MonitorDirectories] Catch general error: " << e.what();
+          LOG(ERROR) << "[RemoveFileScheduler::MonitorDirectories] ERROR Catch general error: " << e.what();
         }
 
         ++current;

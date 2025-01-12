@@ -16,14 +16,14 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->enable_ = saola.GetBooleanValue("Enable", false);
   this->root_ = saola.GetStringValue("Root", "/saola/");
   this->maxRetry_ = saola.GetIntegerValue("MaxRetry", 5);
-  this->interval_ = saola.GetIntegerValue("Interval", 1);
+  this->throttleDelayMs_ = saola.GetIntegerValue("ThrottleDelayMs", 100); // Default 100 milliseconds
 
   for (const auto &appConfig : saola.GetJson()["Apps"])
   {
     // Validate configurations
     if (!appConfig.isMember("Id") || !appConfig.isMember("Type") || !appConfig.isMember("Url") || !appConfig.isMember("Enable"))
     {
-      LOG(ERROR) << "[SaolaConfiguration] Missing mandatory configurations: Id, Type, Url, Enable";
+      LOG(ERROR) << "[SaolaConfiguration] ERROR Missing mandatory configurations: Id, Type, Url, Enable";
     }
 
     if (!appConfig["Enable"].asBool())
@@ -123,7 +123,7 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
       LOG(INFO) << "Field=" << keys.size();
       if (keys.size() < 2)
       {
-        LOG(ERROR) << "Invalid configuration for FieldMapping at: " << m.asString();
+        LOG(ERROR) << "[SaolaConfiguration] ERROR Invalid configuration for FieldMapping at: " << m.asString();
       }
       app->fieldMapping_.emplace(keys[0], keys[1]);
     }
@@ -162,17 +162,16 @@ std::map<std::string, std::string> fieldMapping_;
 
 std::map<std::string, std::string> fieldValues_;
 
-bool SaolaConfiguration::GetAppConfigurationById(const std::string &id, AppConfiguration &res)
+const std::shared_ptr<AppConfiguration> SaolaConfiguration::GetAppConfigurationById(const std::string &id) const
 {
   for (auto &app : this->apps_)
   {
     if (app->id_ == id && app->enable_)
     {
-      app->Clone(res);
-      return true;
+      return app;
     }
   }
-  return false;
+  return std::shared_ptr<AppConfiguration>();
 }
 
 const std::list<std::shared_ptr<AppConfiguration>>& SaolaConfiguration::GetApps() const
@@ -185,9 +184,9 @@ int SaolaConfiguration::GetMaxRetry() const
   return this->maxRetry_;
 }
 
-int SaolaConfiguration::GetInterval() const
+int SaolaConfiguration::GetThrottleDelayMs() const
 {
-  return this->interval_;
+  return this->throttleDelayMs_;
 }
 
 bool SaolaConfiguration::IsEnabled() const

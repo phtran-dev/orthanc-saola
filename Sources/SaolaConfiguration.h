@@ -16,7 +16,7 @@ private:
 
   int maxRetry_ = 5;
 
-  int interval_ = 5;
+  int throttleDelayMs_;
 
   std::string root_;
 
@@ -28,7 +28,7 @@ public:
 
   static SaolaConfiguration& Instance();
 
-  bool GetAppConfigurationById(const std::string& id, AppConfiguration& res);
+  const std::shared_ptr<AppConfiguration> GetAppConfigurationById(const std::string& id) const;
 
   const std::list<std::shared_ptr<AppConfiguration>>& GetApps() const;
 
@@ -36,7 +36,7 @@ public:
 
   int GetMaxRetry() const;
 
-  int GetInterval() const;
+  int GetThrottleDelayMs() const;
   
   const std::string& GetRoot() const;
 

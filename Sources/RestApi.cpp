@@ -202,8 +202,7 @@ static void SaveStableEvent(OrthancPluginRestOutput *output,
   Json::Value requestBody;
   OrthancPlugins::ReadJson(requestBody, request->body, request->bodySize);
 
-  if (!requestBody.isMember("iuid") &&
-      !requestBody.isMember("resource_id") &&
+  if (!requestBody.isMember("resource_id") &&
       !requestBody.isMember("resource_type") &&
       !requestBody.isMember("app"))
   {
@@ -211,9 +210,10 @@ static void SaveStableEvent(OrthancPluginRestOutput *output,
     return;
   }
 
-  AppConfiguration app;
-  if (!SaolaConfiguration::Instance().GetAppConfigurationById(requestBody["app"].asString(), app))
+  std::shared_ptr<AppConfiguration> app = SaolaConfiguration::Instance().GetAppConfigurationById(requestBody["app"].asString());
+  if (!app)
   {
+    LOG(ERROR) << "[SaveStableEvent] ERROR Cannot find any AppConfiguration " << requestBody["app"].asString();
     OrthancPluginSendHttpStatusCode(context, output, 400);
     return;
   }
@@ -223,8 +223,8 @@ static void SaveStableEvent(OrthancPluginRestOutput *output,
   dto.resource_id_ = requestBody["resource_id"].asCString();
   dto.resouce_type_ = requestBody["resource_type"].asCString();
   dto.app_id_ = requestBody["app"].asCString();
-  dto.app_type_ = app.type_.c_str();
-  dto.delay_ = app.delay_;
+  dto.app_type_ = app->type_.c_str();
+  dto.delay_ = app->delay_;
   if (requestBody.isMember("delay"))
   {
     dto.delay_ = requestBody["delay"].asInt();
@@ -251,8 +251,7 @@ static void ExecuteStableEvents(OrthancPluginRestOutput *output,
   Json::Value requestBody;
   OrthancPlugins::ReadJson(requestBody, request->body, request->bodySize);
 
-  if (!requestBody.isMember("iuid") &&
-      !requestBody.isMember("resource_id") &&
+  if (!requestBody.isMember("resource_id") &&
       !requestBody.isMember("resource_type") &&
       !requestBody.isMember("app"))
   {
@@ -260,9 +259,10 @@ static void ExecuteStableEvents(OrthancPluginRestOutput *output,
     return;
   }
 
-  AppConfiguration app;
-  if (!SaolaConfiguration::Instance().GetAppConfigurationById(requestBody["app"].asString(), app))
+  std::shared_ptr<AppConfiguration> app = SaolaConfiguration::Instance().GetAppConfigurationById(requestBody["app"].asString());
+  if (!app)
   {
+    LOG(ERROR) << "[ExecuteStableEvents] ERROR Cannot find any AppConfiguration " << requestBody["app"].asString();
     OrthancPluginSendHttpStatusCode(context, output, 400);
     return;
   }
@@ -273,7 +273,7 @@ static void ExecuteStableEvents(OrthancPluginRestOutput *output,
   dto.resource_id_ = requestBody["resource_id"].asCString();
   dto.resource_type_ = requestBody["resource_type"].asCString();
   dto.app_id_ = requestBody["app"].asCString();
-  dto.app_type_ = app.type_.c_str();
+  dto.app_type_ = app->type_.c_str();
   dto.delay_sec_ = 0;
   dto.retry_ = 0;
 
@@ -284,8 +284,8 @@ static void ExecuteStableEvents(OrthancPluginRestOutput *output,
     dto.resource_id_ = requestBody["resource_id"].asCString();
     dto.resouce_type_ = requestBody["resource_type"].asCString();
     dto.app_id_ = requestBody["app"].asCString();
-    dto.app_type_ = app.type_.c_str();
-    dto.delay_ = app.delay_;
+    dto.app_type_ = app->type_.c_str();
+    dto.delay_ = app->delay_;
     if (requestBody.isMember("delay"))
     {
       dto.delay_ = requestBody["delay"].asInt();

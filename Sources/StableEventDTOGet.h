@@ -1,5 +1,7 @@
 #pragma once
 
+#include "TimeUtil.h"
+
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 #include <string>
@@ -55,12 +57,13 @@ struct StableEventDTOGet
     json["retry"] = retry_;
     json["failedReason"] = failed_reason_;
     json["creationTime"] = creation_time_;
+    json["now"] = boost::posix_time::to_iso_string(GetNow());
   }
 
   std::string ToJsonString() const
   {
     std::stringstream ss;
-    ss << "StableEventDTOGet {id=" << this->id_ << ", iuid=" << this->iuid_ << ", resource_id=" << this->resource_id_ << ", app_id_=" << this->app_id_ << ", app_type_=" << this->app_type_ << ", resource_type=" << this->resource_type_ << ", retry_=" << this->retry_ << ", creation_time=" << this->creation_time_ << "}";
+    ss << "StableEventDTOGet {id=" << this->id_ << ", iuid=" << this->iuid_ << ", resource_id=" << this->resource_id_ << ", app_id_=" << this->app_id_ << ", app_type_=" << this->app_type_ << ", resource_type=" << this->resource_type_ << ", retry_=" << this->retry_ << ", delay_sec=" << delay_sec_ << ", creation_time=" << this->creation_time_ << ", now=" << boost::posix_time::to_iso_string(GetNow()) << "}";
     return ss.str();
   }
 

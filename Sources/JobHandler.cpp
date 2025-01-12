@@ -28,11 +28,11 @@ void OnJobSuccess(const std::string &jobId)
   }
   catch (const std::exception &e)
   {
-    LOG(ERROR) << "[OnJobSuccess] Exception: " << e.what();
+    LOG(ERROR) << "[OnJobSuccess] ERROR JOB " << jobId << " Exception: " << e.what();
   }
   catch (...)
   {
-    LOG(ERROR) << "[OnJobSuccess] Undetermined exception";
+    LOG(ERROR) << "[OnJobSuccess] ERROR JOB " << jobId << " Undetermined exception";
   }
 }
 
@@ -54,20 +54,20 @@ void OnJobFailure(const std::string &jobId)
       }
       else
       {
-        LOG(INFO) << "[OnJobFailure] Cannot find QUEUE by jobId=" << jobId;
+        LOG(INFO) << "[OnJobFailure] ERROR JOB " << jobId << " cannot find QUEUE";
       }
     }
     else
     {
-      LOG(INFO) << "[OnJobFailure] Cannot find JOB jobId=" << jobId;
+      LOG(INFO) << "[OnJobFailure] ERROR cannot find JOB " << jobId;
     }
   }
   catch (const std::exception &e)
   {
-    LOG(ERROR) << "[OnJobFailure] Exception: " << e.what();
+    LOG(ERROR) << "[OnJobFailure] ERROR JOB " << jobId << " exception: " << e.what();
   }
   catch (...)
   {
-    LOG(ERROR) << "[OnJobFailure] Undetermined exception";
+    LOG(ERROR) << "[OnJobFailure] ERROR JOB " << jobId << " undetermined exception";
   }
 }

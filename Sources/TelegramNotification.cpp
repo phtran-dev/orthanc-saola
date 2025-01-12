@@ -51,7 +51,7 @@ void TelegramNotification::SendMessage(const Json::Value &content)
     }
     catch (std::exception& e)
     {
-      LOG(ERROR) << "[Telegram] Got error: " << e.what();
+      LOG(ERROR) << "[Telegram] ERROR Got error: " << e.what();
     }
     catch (...)
     {

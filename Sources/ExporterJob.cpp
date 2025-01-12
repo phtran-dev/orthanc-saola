@@ -1085,7 +1085,7 @@ namespace Saola
       }
       catch (Orthanc::OrthancException &e)
       {
-        LOG(ERROR) << "Error while creating an archive: " << e.What();
+        LOG(ERROR) << "[ExporterJob::Step] ERROR while creating an archive: " << e.What();
         throw;
       }
 

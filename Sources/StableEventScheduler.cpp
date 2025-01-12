@@ -26,7 +26,7 @@ constexpr const char *JOB_STATE_FAILURE = "Failure";
 constexpr const char *JOB_STATE_PAUSE = "Paused";
 constexpr const char *JOB_STATE_RETRY = "Retry";
 
-constexpr const char* EXCEPTION_KEY = "Exception";
+constexpr const char *EXCEPTION_KEY = "Exception";
 
 static std::list<std::string> FIRST_PRIORITY_APP_TYPES = {"Ris", "StoreServer"};
 
@@ -254,13 +254,13 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, const StableE
         Json::Value response;
         if (!OrthancPlugins::RestApiGet(response, "/jobs/" + job.id_, false) || response.empty())
         {
-          LOG(ERROR) << "[ProcessTransferTask] Cannot call API /jobs/" << job.id_ << ", or response empty";
+          LOG(ERROR) << "[ProcessTransferTask] ERROR Cannot call API /jobs/" << job.id_ << ", or response empty";
           continue;
         }
 
         if (!response.isMember("State"))
         {
-          LOG(ERROR) << "[ProcessTransferTask] API /jobs/" << job.id_ << ", Response body does not have \"State\"";
+          LOG(ERROR) << "[ProcessTransferTask] ERROR API /jobs/" << job.id_ << ", Response body does not have \"State\"";
           continue; // jobState is still JobState_Failure
         }
 
@@ -269,7 +269,7 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, const StableE
             response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Paused) ||
             response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Retry))
         {
-          LOG(ERROR) << "[ProcessTransferTask] API /jobs/" << job.id_ << ", Response body has State=" << response["State"].asString();
+          LOG(ERROR) << "[ProcessTransferTask] ERROR API /jobs/" << job.id_ << ", Response body has State=" << response["State"].asString();
           continue; // jobState is still JobState_Failure
         }
 
@@ -307,7 +307,7 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, const StableE
     Json::Value jobResponse;
     if (!OrthancPlugins::RestApiPost(jobResponse, appConfig.url_, body, true))
     {
-      LOG(ERROR) << "[ProcessTransferTask] Send to API: " << appConfig.url_ << " ,Failed response=" << jobResponse.toStyledString();
+      LOG(ERROR) << "[ProcessTransferTask] ERROR Send to API: " << appConfig.url_ << " ,Failed response=" << jobResponse.toStyledString();
       notification[EXCEPTION_KEY] = "Cannot POST to url=" + appConfig.url_;
       return false;
     }
@@ -323,19 +323,19 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, const StableE
   }
   catch (Orthanc::OrthancException &e)
   {
-    LOG(ERROR) << "[ProcessTransferTask] Orthanc::OrthancException: " << e.What();
+    LOG(ERROR) << "[ProcessTransferTask] ERROR Orthanc::OrthancException: " << e.What();
     notification[EXCEPTION_KEY] = e.What();
     return false;
   }
   catch (std::exception &e)
   {
-    LOG(ERROR) << "[ProcessTransferTask] std::exception: " << e.what();
+    LOG(ERROR) << "[ProcessTransferTask] ERROR std::exception: " << e.what();
     notification[EXCEPTION_KEY] = e.what();
     return false;
   }
   catch (...)
   {
-    LOG(ERROR) << "[ProcessTransferTask] Exception occurs but no specific reason";
+    LOG(ERROR) << "[ProcessTransferTask] ERROR Exception occurs but no specific reason";
     notification[EXCEPTION_KEY] = "Exception occurs but no specific reason";
     return false;
   }
@@ -382,15 +382,20 @@ static bool ProcessExternalTask(const AppConfiguration &appConfig, const StableE
 
 bool StableEventScheduler::ExecuteEvent(const StableEventDTOGet &event)
 {
-  AppConfiguration appConfig;
-  SaolaConfiguration::Instance().GetAppConfigurationById(event.app_id_, appConfig);
-  Json::Value notification;
-  if (appConfig.type_ == "Transfer" || appConfig.type_ == "Exporter")
+  std::shared_ptr<AppConfiguration> appConfig = SaolaConfiguration::Instance().GetAppConfigurationById(event.app_id_);
+  if (!appConfig)
   {
-    return ProcessTransferTask(appConfig, event, notification);
+    LOG(ERROR) << "[ExecuteEvent] ERROR Cannot find any AppConfiguration " << event.app_id_;
+    return false;
   }
 
-  return ProcessExternalTask(appConfig, event, notification);
+  Json::Value notification;
+  if (appConfig->type_ == "Transfer" || appConfig->type_ == "Exporter")
+  {
+    return ProcessTransferTask(*appConfig, event, notification);
+  }
+
+  return ProcessExternalTask(*appConfig, event, notification);
 }
 
 static void MonitorTasks(const std::list<StableEventDTOGet> &tasks)
@@ -408,15 +413,21 @@ static void MonitorTasks(const std::list<StableEventDTOGet> &tasks)
       continue;
     }
 
-    AppConfiguration appConfig;
-    SaolaConfiguration::Instance().GetAppConfigurationById(task.app_id_, appConfig);
+    std::shared_ptr<AppConfiguration> appConfig = SaolaConfiguration::Instance().GetAppConfigurationById(task.app_id_);
+    if (!appConfig)
+    {
+      LOG(ERROR) << "[MonitorTasks] ERROR Cannot find any AppConfiguration " << task.app_id_;
+      SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, "[MonitorTasks] Cannot find any AppConfiguration", task.retry_ + 1));
+      SaolaDatabase::Instance().DeleteTransferJobsByQueueId(task.id_);
+      return;
+    }
+
     Json::Value notification;
     notification[EXCEPTION_KEY] = "";
-    if (appConfig.type_ == "Transfer" || appConfig.type_ == "Exporter")
+    if (appConfig->type_ == "Transfer" || appConfig->type_ == "Exporter")
     {
-      if (!ProcessTransferTask(appConfig, task, notification))
+      if (!ProcessTransferTask(*appConfig, task, notification))
       {
-
         SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, notification[EXCEPTION_KEY].asCString(), task.retry_ + 1));
         SaolaDatabase::Instance().DeleteTransferJobsByQueueId(task.id_);
         TelegramNotification::Instance().SendMessage(notification);
@@ -424,7 +435,7 @@ static void MonitorTasks(const std::list<StableEventDTOGet> &tasks)
     }
     else
     {
-      if (!ProcessExternalTask(appConfig, task, notification))
+      if (!ProcessExternalTask(*appConfig, task, notification))
       {
         SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, notification[EXCEPTION_KEY].asCString(), task.retry_ + 1));
         TelegramNotification::Instance().SendMessage(notification);
@@ -464,11 +475,7 @@ void StableEventScheduler::Start()
       std::list<StableEventDTOGet> results;
       SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, true, SaolaConfiguration::Instance().GetMaxRetry(), results);
       MonitorTasks(results);
-
-      for (int i = 0; i < SaolaConfiguration::Instance().GetInterval() * 10; i++)
-      {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(SaolaConfiguration::Instance().GetThrottleDelayMs()));
     } });
 
   this->m_worker2 = new std::thread([this]()
@@ -479,10 +486,7 @@ void StableEventScheduler::Start()
       std::list<StableEventDTOGet> results;
       SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), results);
       MonitorTasks(results);
-      for (int i = 0; i < SaolaConfiguration::Instance().GetInterval() * 10; i++)
-      {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(SaolaConfiguration::Instance().GetThrottleDelayMs()));
     } });
 }
 
