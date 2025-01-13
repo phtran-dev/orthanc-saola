@@ -10,43 +10,44 @@
 struct StableEventDTOGet
 {
   /* data */
-  int64_t     id_;
+  int64_t id_;
   std::string iuid_;
   std::string resource_id_;
   std::string resource_type_;
   std::string app_id_;
   std::string app_type_;
-  int         delay_sec_ = 0;
-  int         retry_;
+  int delay_sec_ = 0;
+  int retry_;
   std::string failed_reason_;
   std::string creation_time_;
 
   StableEventDTOGet()
-  {}
+  {
+  }
 
   StableEventDTOGet(int64_t id,
-                    std::string&& iuid,
-                    std::string&& resource_id,
-                    std::string&& resource_type,
-                    std::string&& app_id,
-                    std::string&& app_type,
+                    std::string &&iuid,
+                    std::string &&resource_id,
+                    std::string &&resource_type,
+                    std::string &&app_id,
+                    std::string &&app_type,
                     int delay_sec,
                     int retry,
-                    std::string&& failed_reason,
-                    std::string&& creation_time) :
-    id_(id),
-    iuid_(iuid),
-    resource_id_(resource_id),
-    resource_type_(resource_type), 
-    app_id_(app_id),
-    app_type_(app_type),
-    delay_sec_(delay_sec), 
-    retry_(retry), 
-    failed_reason_(failed_reason), 
-    creation_time_(creation_time)
-  {}
+                    std::string &&failed_reason,
+                    std::string &&creation_time) : id_(id),
+                                                   iuid_(iuid),
+                                                   resource_id_(resource_id),
+                                                   resource_type_(resource_type),
+                                                   app_id_(app_id),
+                                                   app_type_(app_type),
+                                                   delay_sec_(delay_sec),
+                                                   retry_(retry),
+                                                   failed_reason_(failed_reason),
+                                                   creation_time_(creation_time)
+  {
+  }
 
-  void ToJson(Json::Value& json) const
+  void ToJson(Json::Value &json) const
   {
     json["id"] = id_;
     json["iuid"] = iuid_;
@@ -57,14 +58,17 @@ struct StableEventDTOGet
     json["retry"] = retry_;
     json["failedReason"] = failed_reason_;
     json["creationTime"] = creation_time_;
-    json["now"] = boost::posix_time::to_iso_string(GetNow());
+    json["now"] = boost::posix_time::to_iso_string(Saola::GetNow());
   }
 
   std::string ToJsonString() const
   {
     std::stringstream ss;
-    ss << "StableEventDTOGet {id=" << this->id_ << ", iuid=" << this->iuid_ << ", resource_id=" << this->resource_id_ << ", app_id_=" << this->app_id_ << ", app_type_=" << this->app_type_ << ", resource_type=" << this->resource_type_ << ", retry_=" << this->retry_ << ", delay_sec=" << delay_sec_ << ", creation_time=" << this->creation_time_ << ", now=" << boost::posix_time::to_iso_string(GetNow()) << "}";
+    ss << "StableEventDTOGet {id=" << this->id_ << ", iuid=" << this->iuid_ << ", resource_id=" << this->resource_id_
+       << ", app_id_=" << this->app_id_ << ", app_type_=" << this->app_type_ << ", resource_type=" << this->resource_type_ 
+       << ", retry_=" << this->retry_ << ", delay_sec=" << delay_sec_ << ", creation_time=" 
+       << this->creation_time_ << ", now=" << boost::posix_time::to_iso_string(Saola::GetNow()) 
+       << ", elapsed=" << Saola::Elapsed(this->creation_time_) << "}";
     return ss.str();
   }
-
 };

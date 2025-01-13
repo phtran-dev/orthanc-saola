@@ -49,8 +49,9 @@ void OnJobFailure(const std::string &jobId)
       StableEventDTOGet dtoGet;
       if (SaolaDatabase::Instance().GetById(dto.queue_id_, dtoGet))
       {
+        dtoGet.retry_ += 1;
         LOG(INFO) << "[OnJobFailure] Updating queue " << dtoGet.ToJsonString();
-        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dtoGet.id_, "Callback OnJobFailure triggered", dtoGet.retry_ + 1));
+        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dtoGet.id_, "Callback OnJobFailure triggered", dtoGet.retry_));
       }
       else
       {

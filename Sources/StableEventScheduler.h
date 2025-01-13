@@ -30,7 +30,7 @@ private:
 public:
   static StableEventScheduler &Instance();
 
-  bool ExecuteEvent(const StableEventDTOGet &event);
+  bool ExecuteEvent(StableEventDTOGet &event);
 
   ~StableEventScheduler();
 

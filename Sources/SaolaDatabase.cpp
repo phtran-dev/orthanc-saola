@@ -271,7 +271,7 @@ int64_t SaolaDatabase::AddEvent(const StableEventDTOCreate &obj)
     statement.BindString(3, obj.app_id_);
     statement.BindString(4, obj.app_type_);
     statement.BindInt(5, obj.delay_);
-    statement.BindString(6, boost::posix_time::to_iso_string(GetNow()));
+    statement.BindString(6, boost::posix_time::to_iso_string(Saola::GetNow()));
     statement.Run();
   }
 
@@ -396,22 +396,22 @@ void SaolaDatabase::SaveTransferJob(const TransferJobDTOCreate &dto, TransferJob
     Orthanc::SQLite::Statement statement(db_, "INSERT INTO TransferJobs (id, queue_id, last_updated_time, creation_time) VALUES(?, ?, ?, ?)");
     statement.BindString(0, dto.id_);
     statement.BindInt64(1, dto.queue_id_);
-    statement.BindString(2, boost::posix_time::to_iso_string(GetNow()));
-    statement.BindString(3, boost::posix_time::to_iso_string(GetNow()));
+    statement.BindString(2, boost::posix_time::to_iso_string(Saola::GetNow()));
+    statement.BindString(3, boost::posix_time::to_iso_string(Saola::GetNow()));
     statement.Run();
 
-    result.last_updated_time_ = boost::posix_time::to_iso_string(GetNow());
-    result.creation_time_ = boost::posix_time::to_iso_string(GetNow());
+    result.last_updated_time_ = boost::posix_time::to_iso_string(Saola::GetNow());
+    result.creation_time_ = boost::posix_time::to_iso_string(Saola::GetNow());
   }
   else
   {
     Orthanc::SQLite::Statement statement(db_, "UPDATE TransferJobs SET queue_id=?, last_updated_time=? WHERE id=?");
-    statement.BindString(0, boost::posix_time::to_iso_string(GetNow()));
+    statement.BindString(0, boost::posix_time::to_iso_string(Saola::GetNow()));
     statement.BindInt64(1, dto.queue_id_);
     statement.BindString(2, dto.id_);
     statement.Run();
 
-    result.last_updated_time_ = boost::posix_time::to_iso_string(GetNow());
+    result.last_updated_time_ = boost::posix_time::to_iso_string(Saola::GetNow());
     result.creation_time_ = existings.front().creation_time_;
   }
 

@@ -19,13 +19,7 @@
 
 #include <boost/algorithm/string.hpp>
 
-constexpr const char *JOB_STATE_PENDING = "Pending";
-constexpr const char *JOB_STATE_RUNNING = "Running";
-constexpr const char *JOB_STATE_SUCCESS = "Success";
-constexpr const char *JOB_STATE_FAILURE = "Failure";
-constexpr const char *JOB_STATE_PAUSE = "Paused";
-constexpr const char *JOB_STATE_RETRY = "Retry";
-
+constexpr int RETENTION_EXPIRED = 3600; // 3600 secs ~ 1 hour 
 constexpr const char *EXCEPTION_KEY = "Exception";
 
 static std::list<std::string> FIRST_PRIORITY_APP_TYPES = {"Ris", "StoreServer"};
@@ -234,7 +228,7 @@ static void PrepareBody(Json::Value &body, const AppConfiguration &appConfig, co
   }
 }
 
-static bool ProcessTransferTask(const AppConfiguration &appConfig, const StableEventDTOGet &dto, Json::Value &notification)
+static bool ProcessTransferTask(const AppConfiguration &appConfig, StableEventDTOGet &dto, Json::Value &notification)
 {
   LOG(INFO) << "[ProcessTransferTask] process ProcessTransferTask id=" << dto.id_;
   dto.ToJson(notification);
@@ -244,7 +238,7 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, const StableE
 
     // Check All jobs' state. If JOB state is
     // - Success --> Delete queue and its jobs
-    // - Running --> Do nothing and return
+    // - Running --> Chec if task is overdue. YES --> set try to max. NO --> wait until it finishes or being overdue
     // - Pending, Failure, Paused, Retry --> Increase queue's retry by 1 and return
     if (dto.id_ >= 0 && SaolaDatabase::Instance().GetTransferJobsByByQueueId(dto.id_, jobs))
     {
@@ -254,14 +248,22 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, const StableE
         Json::Value response;
         if (!OrthancPlugins::RestApiGet(response, "/jobs/" + job.id_, false) || response.empty())
         {
-          LOG(ERROR) << "[ProcessTransferTask] ERROR Cannot call API /jobs/" << job.id_ << ", or response empty";
-          continue;
+          std::stringstream ss;
+          ss << "[ProcessTransferTask] ERROR Cannot call API /jobs/" << job.id_ << ", or response empty";
+          LOG(ERROR) << ss.str();
+          dto.failed_reason_ = ss.str();
+          notification[EXCEPTION_KEY] = ss.str();
+          continue; // jobStateOk is still FALSE
         }
 
         if (!response.isMember("State"))
         {
-          LOG(ERROR) << "[ProcessTransferTask] ERROR API /jobs/" << job.id_ << ", Response body does not have \"State\"";
-          continue; // jobState is still JobState_Failure
+          std::stringstream ss;
+          ss << "[ProcessTransferTask] ERROR API /jobs/" << job.id_ << ", Response body does not have \"State\"";
+          LOG(ERROR) << ss.str();
+          dto.failed_reason_ = ss.str();
+          notification[EXCEPTION_KEY] = ss.str();
+          continue; // jobStateOk is still FALSE
         }
 
         if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Pending) ||
@@ -269,8 +271,12 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, const StableE
             response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Paused) ||
             response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Retry))
         {
-          LOG(ERROR) << "[ProcessTransferTask] ERROR API /jobs/" << job.id_ << ", Response body has State=" << response["State"].asString();
-          continue; // jobState is still JobState_Failure
+          std::stringstream ss;
+          ss << "[ProcessTransferTask] ERROR API /jobs/" << job.id_ << ", Response body has State=" << response["State"].asString();
+          LOG(ERROR) << ss.str();
+          dto.failed_reason_ = ss.str();
+          notification[EXCEPTION_KEY] = ss.str();
+          continue; // jobStateOk is still FALSE
         }
 
         if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Success))
@@ -279,25 +285,33 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, const StableE
           SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_); // dto.id_ >= 0 as condition in FOR loop
           SaolaDatabase::Instance().DeleteEventByIds(std::list<int64_t>{dto.id_});
           jobStateOk = true;
-          break; // break loop, jobState is now JobState_Success
+          break; // break loop, // jobStateOk is TRUE
         }
 
         if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Running))
         {
-          LOG(INFO) << "[ProcessTransferTask] API /jobs/" << job.id_ << ", Response body has State=Running" << ", WAITING until it finishes";
-          jobStateOk = true;
+          // @TODO Remove this hard-coded
+          LOG(INFO) << "[ProcessTransferTask] API /jobs/" << job.id_ << ", Response body has State=Running" << ", WAITING until it finishes. Task " << dto.id_ << " creation_time " << dto.creation_time_ << ", now " << boost::posix_time::to_iso_string(Saola::GetNow()) << ", elapsed " << Saola::Elapsed(dto.creation_time_) << " , retention " << RETENTION_EXPIRED << "(s)";
+
+          if (Saola::IsOverDue(dto.creation_time_, RETENTION_EXPIRED))
+          {
+            // Set retry to MAX since we do not want to process this task anymore
+            std::stringstream ss;
+            ss << "[ProcessTransferTask] API /jobs/" << job.id_ << " EXPIRED, Response body has State=Running" << ", WAITING until it finishes. Task " << dto.id_ << " creation_time " << dto.creation_time_ << ", now " << boost::posix_time::to_iso_string(Saola::GetNow()) << ", elapsed " << Saola::Elapsed(dto.creation_time_) << " , retention " << RETENTION_EXPIRED << "(s)";
+            dto.failed_reason_ = ss.str();
+            notification[EXCEPTION_KEY] = ss.str();
+            dto.retry_ = SaolaConfiguration::Instance().GetMaxRetry();
+          }
+          else
+          {
+            jobStateOk = true;
+          }
           break; // break loop, jobState is now JobState_Running
         }
       }
 
-      // If All jobs are failed then return FALSE immmediately
-      if (!jobStateOk)
-      {
-        notification[EXCEPTION_KEY] = "All Jobs are FAILED";
-        return false;
-      }
-
-      return true;
+      // If All jobs are failed then return FALSE immediately
+      return jobStateOk;
     }
 
     Json::Value body;
@@ -307,8 +321,11 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, const StableE
     Json::Value jobResponse;
     if (!OrthancPlugins::RestApiPost(jobResponse, appConfig.url_, body, true))
     {
-      LOG(ERROR) << "[ProcessTransferTask] ERROR Send to API: " << appConfig.url_ << " ,Failed response=" << jobResponse.toStyledString();
-      notification[EXCEPTION_KEY] = "Cannot POST to url=" + appConfig.url_;
+      std::stringstream ss;
+      ss << "[ProcessTransferTask] ERROR Send to API: " << appConfig.url_ << " ,Failed response=" << jobResponse.toStyledString();
+      dto.failed_reason_ = ss.str();
+      notification[EXCEPTION_KEY] = ss.str();
+      LOG(ERROR) << ss.str();
       return false;
     }
 
@@ -323,20 +340,28 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, const StableE
   }
   catch (Orthanc::OrthancException &e)
   {
-    LOG(ERROR) << "[ProcessTransferTask] ERROR Orthanc::OrthancException: " << e.What();
-    notification[EXCEPTION_KEY] = e.What();
+    std::stringstream ss;
+    ss << "[ProcessTransferTask] ERROR Orthanc::OrthancException: " << e.What();
+    dto.failed_reason_ = ss.str();
+    notification[EXCEPTION_KEY] = ss.str();
+    LOG(ERROR) << ss.str();
     return false;
   }
   catch (std::exception &e)
   {
-    LOG(ERROR) << "[ProcessTransferTask] ERROR std::exception: " << e.what();
-    notification[EXCEPTION_KEY] = e.what();
+    std::stringstream ss;
+    ss << "[ProcessTransferTask] ERROR std::exception: " << e.what();
+    dto.failed_reason_ = ss.str();
+    notification[EXCEPTION_KEY] = ss.str();
+    LOG(ERROR) << ss.str();
     return false;
   }
   catch (...)
   {
-    LOG(ERROR) << "[ProcessTransferTask] ERROR Exception occurs but no specific reason";
-    notification[EXCEPTION_KEY] = "Exception occurs but no specific reason";
+    std::string what = "[ProcessTransferTask] ERROR Exception occurs but no specific reason";
+    dto.failed_reason_ = what;
+    notification[EXCEPTION_KEY] = what;
+    LOG(ERROR) << what;
     return false;
   }
 }
@@ -380,7 +405,7 @@ static bool ProcessExternalTask(const AppConfiguration &appConfig, const StableE
   }
 }
 
-bool StableEventScheduler::ExecuteEvent(const StableEventDTOGet &event)
+bool StableEventScheduler::ExecuteEvent(StableEventDTOGet &event)
 {
   std::shared_ptr<AppConfiguration> appConfig = SaolaConfiguration::Instance().GetAppConfigurationById(event.app_id_);
   if (!appConfig)
@@ -398,28 +423,25 @@ bool StableEventScheduler::ExecuteEvent(const StableEventDTOGet &event)
   return ProcessExternalTask(*appConfig, event, notification);
 }
 
-static void MonitorTasks(const std::list<StableEventDTOGet> &tasks)
+static void MonitorTasks(std::list<StableEventDTOGet> &tasks)
 {
-  for (const auto &task : tasks)
+  for (auto &task : tasks)
   {
-    LOG(INFO) << "[MonitorTasks] Result {id=" << task.ToJsonString();
-
-    boost::posix_time::ptime t = boost::posix_time::from_iso_string(task.creation_time_);
-
-    LOG(INFO) << "[MonitorTasks] time elapsed: " << GetNow() - t << ", delay=" << task.delay_sec_;
-
-    if (GetNow() - t < boost::posix_time::seconds(task.delay_sec_))
-    {
-      continue;
-    }
+    LOG(INFO) << "[MonitorTasks] Processing task " << task.ToJsonString();
 
     std::shared_ptr<AppConfiguration> appConfig = SaolaConfiguration::Instance().GetAppConfigurationById(task.app_id_);
     if (!appConfig)
     {
       LOG(ERROR) << "[MonitorTasks] ERROR Cannot find any AppConfiguration " << task.app_id_;
-      SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, "[MonitorTasks] Cannot find any AppConfiguration", task.retry_ + 1));
+      SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, "[MonitorTasks] Cannot find any AppConfiguration", SaolaConfiguration::Instance().GetMaxRetry() + 1));
       SaolaDatabase::Instance().DeleteTransferJobsByQueueId(task.id_);
-      return;
+      continue;
+    }
+
+
+    if (!Saola::IsOverDue(task.creation_time_, task.delay_sec_))
+    {
+      continue;
     }
 
     Json::Value notification;
@@ -428,7 +450,7 @@ static void MonitorTasks(const std::list<StableEventDTOGet> &tasks)
     {
       if (!ProcessTransferTask(*appConfig, task, notification))
       {
-        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, notification[EXCEPTION_KEY].asCString(), task.retry_ + 1));
+        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, task.failed_reason_.c_str(), task.retry_ + 1));
         SaolaDatabase::Instance().DeleteTransferJobsByQueueId(task.id_);
         TelegramNotification::Instance().SendMessage(notification);
       }
