@@ -427,8 +427,6 @@ static void MonitorTasks(std::list<StableEventDTOGet> &tasks)
 {
   for (auto &task : tasks)
   {
-    LOG(INFO) << "[MonitorTasks] Processing task " << task.ToJsonString();
-
     std::shared_ptr<AppConfiguration> appConfig = SaolaConfiguration::Instance().GetAppConfigurationById(task.app_id_);
     if (!appConfig)
     {
@@ -443,6 +441,8 @@ static void MonitorTasks(std::list<StableEventDTOGet> &tasks)
     {
       continue;
     }
+    LOG(INFO) << "[MonitorTasks] Processing task " << task.ToJsonString();
+
 
     Json::Value notification;
     notification[EXCEPTION_KEY] = "";

@@ -58,7 +58,7 @@ void RemoveFileScheduler::DeletePath(const std::string &path, int expirationDura
   // Be sure time
   if (now - lastModification < boost::posix_time::hours(expirationDuration_))
   {
-    LOG(INFO) << "[RemoveFileScheduler::DeletePath] path=" << path << " is not expired yet, expirationDuration_=" << expirationDuration_ << "(hours), now=" << now << ", lastModification=" << lastModification;
+    // LOG(INFO) << "[RemoveFileScheduler::DeletePath] path=" << path << " is not expired yet, expirationDuration_=" << expirationDuration_ << "(hours), now=" << now << ", lastModification=" << lastModification;
     return;
   }
 
