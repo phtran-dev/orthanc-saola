@@ -48,6 +48,8 @@ public:
   
   const std::string& GetRoot() const;
 
+  void ApplyConfiguration(const Json::Value& config);
+
   void ToJson(Json::Value& json);
 
 };

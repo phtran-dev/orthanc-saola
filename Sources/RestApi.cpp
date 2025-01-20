@@ -22,6 +22,8 @@
 
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
+static const char *const SAOLA = "Saola";
+
 namespace
 {
   class SynchronousZipChunk : public Orthanc::IDynamicObject
@@ -104,9 +106,9 @@ namespace
 
 }
 
-static void GetConfigurations(OrthancPluginRestOutput *output,
-                              const char *url,
-                              const OrthancPluginHttpRequest *request)
+static void GetPluginConfiguration(OrthancPluginRestOutput *output,
+                                   const char *url,
+                                   const OrthancPluginHttpRequest *request)
 {
   OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
 
@@ -114,6 +116,28 @@ static void GetConfigurations(OrthancPluginRestOutput *output,
   {
     return OrthancPluginSendMethodNotAllowed(context, output, "Get");
   }
+
+  Json::Value answer;
+  SaolaConfiguration::Instance().ToJson(answer);
+  std::string s = answer.toStyledString();
+  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+}
+
+static void ApplyPluginConfiguration(OrthancPluginRestOutput *output,
+                                     const char *url,
+                                     const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+  Json::Value target;
+  Orthanc::Toolbox::ReadJsonWithoutComments(target, request->body, request->bodySize);
+  OrthancPlugins::OrthancConfiguration config(target, SAOLA), saolaSection;
+  if (!config.IsSection(SAOLA))
+  {
+    return OrthancPluginSendHttpStatusCode(OrthancPlugins::GetGlobalContext(), output, 400);
+  }
+
+  config.GetSection(saolaSection, SAOLA);
+  SaolaConfiguration::Instance().ApplyConfiguration(saolaSection.GetJson());
 
   Json::Value answer;
   SaolaConfiguration::Instance().ToJson(answer);
@@ -668,7 +692,8 @@ void SplitStudy(OrthancPluginRestOutput *output,
 
 void RegisterRestEndpoint()
 {
-  OrthancPlugins::RegisterRestCallback<GetConfigurations>(SaolaConfiguration::Instance().GetRoot() + "configurations", true);
+  OrthancPlugins::RegisterRestCallback<GetPluginConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/configuration", true);
+  OrthancPlugins::RegisterRestCallback<ApplyPluginConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/configuration/apply", true);
   OrthancPlugins::RegisterRestCallback<HandleStableEvents>(SaolaConfiguration::Instance().GetRoot() + "event-queues", true);
   OrthancPlugins::RegisterRestCallback<DeleteStableEvents>(SaolaConfiguration::Instance().GetRoot() + "delete-event-queues", true);
   OrthancPlugins::RegisterRestCallback<ResetStableEvents>(SaolaConfiguration::Instance().GetRoot() + "reset-event-queues", true);
