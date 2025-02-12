@@ -24,6 +24,8 @@
 
 static const char *const SAOLA = "Saola";
 
+static std::string DICOM_WEB_ROOT;
+
 namespace
 {
   class SynchronousZipChunk : public Orthanc::IDynamicObject
@@ -544,9 +546,9 @@ void DeleteStudyResource(OrthancPluginRestOutput *output,
   OrthancPluginAnswerBuffer(context, output, answer.c_str(), answer.size(), "application/json");
 }
 
-void DicomStoreStudy(OrthancPluginRestOutput *output,
-                     const char *url,
-                     const OrthancPluginHttpRequest *request)
+void DicomCStoreStudy(OrthancPluginRestOutput *output,
+                      const char *url,
+                      const OrthancPluginHttpRequest *request)
 {
   OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
 
@@ -572,9 +574,49 @@ void DicomStoreStudy(OrthancPluginRestOutput *output,
   bool post = OrthancPlugins::RestApiPost(result, "/modalities/" + std::string(modalityId) + "/store", resources,
                                           false);
   if (post)
-    OrthancPluginSendHttpStatusCode(context, output, 200);
-  else
-    OrthancPluginSendHttpStatusCode(context, output, 500);
+  {
+    return OrthancPluginSendHttpStatusCode(context, output, 200);
+  }
+
+  return OrthancPluginSendHttpStatusCode(context, output, 500);
+}
+
+void DicomStowRsStudy(OrthancPluginRestOutput *output,
+                      const char *url,
+                      const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+
+  if (request->method != OrthancPluginHttpMethod_Post)
+  {
+    return OrthancPluginSendMethodNotAllowed(context, output, "Post");
+  }
+  const char *server = request->groups[0];
+  Json::Value body;
+  OrthancPlugins::ReadJson(body, request->body, request->bodySize);
+
+  if (body.type() != Json::arrayValue)
+    throw Orthanc::OrthancException(Orthanc::ErrorCode_BadFileFormat, "The request body must contain a string");
+
+  Json::Value resources = Json::arrayValue;
+  for (const auto &val : body)
+  {
+    const char *resourceId = OrthancPluginLookupStudy(context, val.asCString());
+    resources.append(resourceId);
+  }
+
+  Json::Value bodyRequest = Json::objectValue;
+  bodyRequest["Resources"] = resources;
+
+  Json::Value result;
+  bool post = OrthancPlugins::RestApiPost(result, DICOM_WEB_ROOT + "/servers/" + server + "/stow", bodyRequest,
+                                          true);
+  if (post)
+  {
+    return OrthancPluginSendHttpStatusCode(context, output, 200);
+  }
+
+  return OrthancPluginSendHttpStatusCode(context, output, 500);
 }
 
 static bool CheckSplit(OrthancPluginContext *context, const std::string &studyId)
@@ -701,8 +743,27 @@ void RegisterRestEndpoint()
   OrthancPlugins::RegisterRestCallback<GetStableEventByIds>(SaolaConfiguration::Instance().GetRoot() + "event-queues/([^/]*)", true);
   OrthancPlugins::RegisterRestCallback<UpdateTransferJobs>(SaolaConfiguration::Instance().GetRoot() + "transfer-jobs/([^/]*)/([^/]*)", true);
   OrthancPlugins::RegisterRestCallback<ExportSingleResource>(SaolaConfiguration::Instance().GetRoot() + "export", true);
-  OrthancPlugins::RegisterRestCallback<DeleteStudyResource>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/delete", true);         // For compatibility
-  OrthancPlugins::RegisterRestCallback<DicomStoreStudy>(SaolaConfiguration::Instance().GetRoot() + "modalities/([^/]*)/store", true);           // For compatibility
+  OrthancPlugins::RegisterRestCallback<DeleteStudyResource>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/delete", true); // For compatibility
+  OrthancPlugins::RegisterRestCallback<DicomCStoreStudy>(SaolaConfiguration::Instance().GetRoot() + "modalities/([^/]*)/store", true);  // For compatibility
+
+  OrthancPlugins::OrthancConfiguration dicomWebConfiguration;
+  {
+    OrthancPlugins::OrthancConfiguration globalConfiguration;
+    globalConfiguration.GetSection(dicomWebConfiguration, "DicomWeb");
+  }
+
+  if (dicomWebConfiguration.GetBooleanValue("Enable", false))
+  {
+    DICOM_WEB_ROOT = dicomWebConfiguration.GetStringValue("Root", "/wado-rs/");
+    if (DICOM_WEB_ROOT.back() == '/')
+    {
+      DICOM_WEB_ROOT.pop_back();
+
+    }
+    OrthancPlugins::RegisterRestCallback<DicomStowRsStudy>(DICOM_WEB_ROOT + SaolaConfiguration::Instance().GetRoot() + "servers/([^/]*)/stow", true);
+  }
+
+
   OrthancPlugins::RegisterRestCallback<SplitStudy>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/split", true);                   // For compatibility
   OrthancPlugins::RegisterRestCallback<CheckStudyDuplicated>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/is-duplicated", true); // For compatibility
 }
