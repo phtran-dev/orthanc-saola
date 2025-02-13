@@ -142,7 +142,7 @@ add_library(OrthancSaola SHARED
   Sources/SaolaConfiguration.cpp
   Sources/RemoveFileScheduler.cpp
   Sources/StableEventScheduler.cpp
-  Sources/TelegramNotification.cpp
+  Sources/Notification.cpp
   Sources/RestApi.cpp
   Sources/JobHandler.cpp
   Sources/ExporterJob.cpp

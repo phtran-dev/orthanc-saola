@@ -34,8 +34,6 @@
 
 #include <boost/filesystem.hpp>
 
-#define ORTHANC_PLUGIN_NAME "orthanc-saola-api"
-
 static const char *const DATABASE = "Database";
 static const char *const ORTHANC_STORAGE = "OrthancStorage";
 static const char *const STORAGE_DIRECTORY = "StorageDirectory";
@@ -117,6 +115,8 @@ extern "C"
       // SaolaDatabase::Instance().Open(path);
 
       LOG(WARNING) << "Path to the database of the Saola plugin: " << SaolaConfiguration::Instance().GetDbPath();
+      boost::filesystem::path dbPath = SaolaConfiguration::Instance().GetDbPath();
+      Orthanc::SystemToolbox::MakeDirectory(dbPath.parent_path().string());
       SaolaDatabase::Instance().Open(SaolaConfiguration::Instance().GetDbPath());
 
       RegisterRestEndpoint();

@@ -11,7 +11,7 @@
 #include "SaolaConfiguration.h"
 #include "Constants.h"
 
-#include "TelegramNotification.h"
+#include "Notification.h"
 
 #include <Logging.h>
 #include <Enumerations.h>
@@ -19,8 +19,9 @@
 
 #include <boost/algorithm/string.hpp>
 
-constexpr int RETENTION_EXPIRED = 3600; // 3600 secs ~ 1 hour 
-constexpr const char *EXCEPTION_KEY = "Exception";
+constexpr int RETENTION_EXPIRED = 3600; // 3600 secs ~ 1 hour
+constexpr const char *ERROR_MESSAGE = "ErrorMessage";
+constexpr const char *ERROR_DETAIL = "ErrorDetail";
 
 static std::list<std::string> FIRST_PRIORITY_APP_TYPES = {"Ris", "StoreServer"};
 
@@ -228,9 +229,9 @@ static void PrepareBody(Json::Value &body, const AppConfiguration &appConfig, co
   }
 }
 
-static bool ProcessTransferTask(const AppConfiguration &appConfig, StableEventDTOGet &dto, Json::Value &notification)
+static bool ProcessAsyncTask(const AppConfiguration &appConfig, StableEventDTOGet &dto, Json::Value &notification)
 {
-  LOG(INFO) << "[ProcessTransferTask] process ProcessTransferTask id=" << dto.id_;
+  LOG(INFO) << "[ProcessAsyncTask] process ProcessAsyncTask: " << dto.ToJsonString();
   dto.ToJson(notification);
   try
   {
@@ -249,20 +250,22 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, StableEventDT
         if (!OrthancPlugins::RestApiGet(response, "/jobs/" + job.id_, false) || response.empty())
         {
           std::stringstream ss;
-          ss << "[ProcessTransferTask] ERROR Cannot call API /jobs/" << job.id_ << ", or response empty";
+          ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " ERROR Cannot call API /jobs/" << job.id_ << ", or response empty";
           LOG(ERROR) << ss.str();
           dto.failed_reason_ = ss.str();
-          notification[EXCEPTION_KEY] = ss.str();
+          notification[ERROR_DETAIL] = dto.ToJsonString();
+          notification[ERROR_MESSAGE] = ss.str();
           continue; // jobStateOk is still FALSE
         }
 
         if (!response.isMember("State"))
         {
           std::stringstream ss;
-          ss << "[ProcessTransferTask] ERROR API /jobs/" << job.id_ << ", Response body does not have \"State\"";
+          ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " ERROR API /jobs/" << job.id_ << ", Response body does not have \"State\"";
           LOG(ERROR) << ss.str();
           dto.failed_reason_ = ss.str();
-          notification[EXCEPTION_KEY] = ss.str();
+          notification[ERROR_DETAIL] = dto.ToJsonString();
+          notification[ERROR_MESSAGE] = ss.str();
           continue; // jobStateOk is still FALSE
         }
 
@@ -272,16 +275,17 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, StableEventDT
             response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Retry))
         {
           std::stringstream ss;
-          ss << "[ProcessTransferTask] ERROR API /jobs/" << job.id_ << ", Response body has State=" << response["State"].asString();
+          ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " ERROR API /jobs/" << job.id_ << ", Response body has State=" << response["State"].asString();
           LOG(ERROR) << ss.str();
           dto.failed_reason_ = ss.str();
-          notification[EXCEPTION_KEY] = ss.str();
+          notification[ERROR_DETAIL] = dto.ToJsonString();
+          notification[ERROR_MESSAGE] = ss.str();
           continue; // jobStateOk is still FALSE
         }
 
         if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Success))
         {
-          LOG(INFO) << "[ProcessTransferTask] API /jobs/" << job.id_ << ", Response body has State=Success" << ", DELETING queue_id=" << std::to_string(dto.id_);
+          LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " API /jobs/" << job.id_ << ", Response body has State=Success" << ", DELETING queue_id=" << std::to_string(dto.id_);
           SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_); // dto.id_ >= 0 as condition in FOR loop
           SaolaDatabase::Instance().DeleteEventByIds(std::list<int64_t>{dto.id_});
           jobStateOk = true;
@@ -291,15 +295,16 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, StableEventDT
         if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Running))
         {
           // @TODO Remove this hard-coded
-          LOG(INFO) << "[ProcessTransferTask] API /jobs/" << job.id_ << ", Response body has State=Running" << ", WAITING until it finishes. Task " << dto.id_ << " creation_time " << dto.creation_time_ << ", now " << boost::posix_time::to_iso_string(Saola::GetNow()) << ", elapsed " << Saola::Elapsed(dto.creation_time_) << " , retention " << RETENTION_EXPIRED << "(s)";
+          LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " API /jobs/" << job.id_ << ", Response body has State=Running" << ", WAITING until it finishes. Task " << dto.id_ << " creation_time " << dto.creation_time_ << ", now " << boost::posix_time::to_iso_string(Saola::GetNow()) << ", elapsed " << Saola::Elapsed(dto.creation_time_) << " , retention " << RETENTION_EXPIRED << "(s)";
 
           if (Saola::IsOverDue(dto.creation_time_, RETENTION_EXPIRED))
           {
             // Set retry to MAX since we do not want to process this task anymore
             std::stringstream ss;
-            ss << "[ProcessTransferTask] API /jobs/" << job.id_ << " EXPIRED, Response body has State=Running" << ", WAITING until it finishes. Task " << dto.id_ << " creation_time " << dto.creation_time_ << ", now " << boost::posix_time::to_iso_string(Saola::GetNow()) << ", elapsed " << Saola::Elapsed(dto.creation_time_) << " , retention " << RETENTION_EXPIRED << "(s)";
+            ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " API /jobs/" << job.id_ << " EXPIRED, Response body has State=Running" << ", WAITING until it finishes. Task " << dto.id_ << " creation_time " << dto.creation_time_ << ", now " << boost::posix_time::to_iso_string(Saola::GetNow()) << ", elapsed " << Saola::Elapsed(dto.creation_time_) << " , retention " << RETENTION_EXPIRED << "(s)";
             dto.failed_reason_ = ss.str();
-            notification[EXCEPTION_KEY] = ss.str();
+            notification[ERROR_DETAIL] = dto.ToJsonString();
+            notification[ERROR_MESSAGE] = ss.str();
             dto.retry_ = SaolaConfiguration::Instance().GetMaxRetry();
           }
           else
@@ -317,14 +322,17 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, StableEventDT
     Json::Value body;
     PrepareBody(body, appConfig, dto);
 
-    LOG(INFO) << "[ProcessTransferTask] Send to API: " << appConfig.url_ << ", body=" << body.toStyledString();
+    LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " Send to API: " << appConfig.url_ << ", body=" << body.toStyledString();
     Json::Value jobResponse;
     if (!OrthancPlugins::RestApiPost(jobResponse, appConfig.url_, body, true))
     {
       std::stringstream ss;
-      ss << "[ProcessTransferTask] ERROR Send to API: " << appConfig.url_ << " ,Failed response=" << jobResponse.toStyledString();
+      std::string s;
+      OrthancPlugins::WriteFastJson(s, jobResponse);
+      ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " ERROR Send to API: " << appConfig.url_ << " , Failed response=" << s;
       dto.failed_reason_ = ss.str();
-      notification[EXCEPTION_KEY] = ss.str();
+      notification[ERROR_DETAIL] = dto.ToJsonString();
+      notification[ERROR_MESSAGE] = ss.str();
       LOG(ERROR) << ss.str();
       return false;
     }
@@ -334,39 +342,43 @@ static bool ProcessTransferTask(const AppConfiguration &appConfig, StableEventDT
     if (dto.id_ >= 0)
     {
       SaolaDatabase::Instance().SaveTransferJob(TransferJobDTOCreate(jobResponse["ID"].asString(), dto.id_), result);
-      LOG(INFO) << "[ProcessTransferTask] Save JOB " << result.ToJsonString();
+      LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " Save JOB " << result.ToJsonString();
     }
     return true;
   }
   catch (Orthanc::OrthancException &e)
   {
     std::stringstream ss;
-    ss << "[ProcessTransferTask] ERROR Orthanc::OrthancException: " << e.What();
+    ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " ERROR Orthanc::OrthancException: " << e.What();
     dto.failed_reason_ = ss.str();
-    notification[EXCEPTION_KEY] = ss.str();
+    notification[ERROR_DETAIL] = dto.ToJsonString();
+    notification[ERROR_MESSAGE] = ss.str();
     LOG(ERROR) << ss.str();
     return false;
   }
   catch (std::exception &e)
   {
     std::stringstream ss;
-    ss << "[ProcessTransferTask] ERROR std::exception: " << e.what();
+    ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " ERROR std::exception: " << e.what();
     dto.failed_reason_ = ss.str();
-    notification[EXCEPTION_KEY] = ss.str();
+    notification[ERROR_DETAIL] = dto.ToJsonString();
+    notification[ERROR_MESSAGE] = ss.str();
     LOG(ERROR) << ss.str();
     return false;
   }
   catch (...)
   {
-    std::string what = "[ProcessTransferTask] ERROR Exception occurs but no specific reason";
-    dto.failed_reason_ = what;
-    notification[EXCEPTION_KEY] = what;
-    LOG(ERROR) << what;
+    std::stringstream ss;
+    ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " ERROR Exception occurs but no specific reason";
+    dto.failed_reason_ = ss.str();
+    notification[ERROR_DETAIL] = dto.ToJsonString();
+    notification[ERROR_MESSAGE] = ss.str();
+    LOG(ERROR) << ss.str();
     return false;
   }
 }
 
-static bool ProcessExternalTask(const AppConfiguration &appConfig, const StableEventDTOGet &dto, Json::Value &notification)
+static bool ProcessSyncTask(const AppConfiguration &appConfig, StableEventDTOGet &dto, Json::Value &notification)
 {
   notification["TaskType"] = appConfig.type_;
   notification["TaskContent"] = Json::objectValue;
@@ -384,25 +396,37 @@ static bool ProcessExternalTask(const AppConfiguration &appConfig, const StableE
       }
       return true;
     }
-
-    notification[EXCEPTION_KEY] = "Cannot get MainDicomTag";
-    return false;
+    std::stringstream ss;
+    ss << "[ProcessSyncTask][Task-" << dto.id_ << "]" << " ERROR Cannot get MainDicomTag";
+    dto.failed_reason_ = ss.str();
+    notification[ERROR_DETAIL] = dto.ToJsonString();
+    notification[ERROR_MESSAGE] = ss.str();
   }
   catch (Orthanc::OrthancException &e)
   {
-    notification[EXCEPTION_KEY] = e.What();
-    return false;
+    std::stringstream ss;
+    ss << "[ProcessSyncTask][Task-" << dto.id_ << "]" << " ERROR Orthanc::OrthancException: " << e.What();
+    dto.failed_reason_ = ss.str();
+    notification[ERROR_DETAIL] = dto.ToJsonString();
+    notification[ERROR_MESSAGE] = ss.str();
   }
   catch (std::exception &e)
   {
-    notification[EXCEPTION_KEY] = e.what();
-    return false;
+    std::stringstream ss;
+    ss << "[ProcessSyncTask][Task-" << dto.id_ << "]" << " ERROR std::exception: " << e.what();
+    dto.failed_reason_ = ss.str();
+    notification[ERROR_DETAIL] = dto.ToJsonString();
+    notification[ERROR_MESSAGE] = ss.str();
   }
   catch (...)
   {
-    notification[EXCEPTION_KEY] = "Exception with no reason found";
-    return false;
+    std::stringstream ss;
+    ss << "[ProcessSyncTask][Task-" << dto.id_ << "]" << " ERROR Exception occurs but no specific reason";
+    dto.failed_reason_ = ss.str();
+    notification[ERROR_DETAIL] = dto.ToJsonString();
+    notification[ERROR_MESSAGE] = ss.str();
   }
+  return false;
 }
 
 bool StableEventScheduler::ExecuteEvent(StableEventDTOGet &event)
@@ -417,10 +441,10 @@ bool StableEventScheduler::ExecuteEvent(StableEventDTOGet &event)
   Json::Value notification;
   if (appConfig->type_ == "Transfer" || appConfig->type_ == "Exporter")
   {
-    return ProcessTransferTask(*appConfig, event, notification);
+    return ProcessAsyncTask(*appConfig, event, notification);
   }
 
-  return ProcessExternalTask(*appConfig, event, notification);
+  return ProcessSyncTask(*appConfig, event, notification);
 }
 
 static void MonitorTasks(std::list<StableEventDTOGet> &tasks)
@@ -436,31 +460,29 @@ static void MonitorTasks(std::list<StableEventDTOGet> &tasks)
       continue;
     }
 
-
     if (!Saola::IsOverDue(task.creation_time_, task.delay_sec_))
     {
       continue;
     }
     LOG(INFO) << "[MonitorTasks] Processing task " << task.ToJsonString();
 
-
     Json::Value notification;
-    notification[EXCEPTION_KEY] = "";
+    notification[ERROR_MESSAGE] = "";
     if (appConfig->type_ == "Transfer" || appConfig->type_ == "Exporter")
     {
-      if (!ProcessTransferTask(*appConfig, task, notification))
+      if (!ProcessAsyncTask(*appConfig, task, notification))
       {
         SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, task.failed_reason_.c_str(), task.retry_ + 1));
         SaolaDatabase::Instance().DeleteTransferJobsByQueueId(task.id_);
-        TelegramNotification::Instance().SendMessage(notification);
+        Notification::Instance().SendMessage(notification);
       }
     }
     else
     {
-      if (!ProcessExternalTask(*appConfig, task, notification))
+      if (!ProcessSyncTask(*appConfig, task, notification))
       {
-        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, notification[EXCEPTION_KEY].asCString(), task.retry_ + 1));
-        TelegramNotification::Instance().SendMessage(notification);
+        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, task.failed_reason_.c_str(), task.retry_ + 1));
+        Notification::Instance().SendMessage(notification);
       }
     }
   }
