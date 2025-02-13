@@ -619,6 +619,42 @@ void DicomStowRsStudy(OrthancPluginRestOutput *output,
   return OrthancPluginSendHttpStatusCode(context, output, 500);
 }
 
+void GetStudyStatistics(OrthancPluginRestOutput *output,
+                        const char *url,
+                        const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+
+  if (request->method != OrthancPluginHttpMethod_Get)
+  {
+    return OrthancPluginSendMethodNotAllowed(context, output, "Get");
+  }
+
+  Json::Value findData, resourceIds;
+  findData["Level"] = "Study";
+  findData["Query"]["StudyInstanceUID"] = request->groups[0];
+
+  OrthancPlugins::RestApiPost(resourceIds, "/tools/find", findData, false);
+
+  if (resourceIds.isNull() || resourceIds.empty())
+  {
+    LOG(INFO) << "[GetStudyStatistics] Cannot find StudyInstanceUID " << request->groups[0];
+    return OrthancPluginSendHttpStatusCode(context, output, 404);
+  }
+
+  Json::Value result;
+  OrthancPlugins::RestApiGet(result, "/studies/" + resourceIds[0].asString() + "/statistics", false);
+  if (!result.isNull() && !result.empty())
+  {
+    std::string s;
+    OrthancPlugins::WriteFastJson(s, result);
+    return OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+  }
+
+  LOG(INFO) << "[GetStudyStatistics] Cannot get StudyInstanceUID " << request->groups[0] << " statistics";
+  return OrthancPluginSendHttpStatusCode(context, output, 404);
+}
+
 static bool CheckSplit(OrthancPluginContext *context, const std::string &studyId)
 {
   // Check if studyInstanceUID is duplicated
@@ -743,8 +779,9 @@ void RegisterRestEndpoint()
   OrthancPlugins::RegisterRestCallback<GetStableEventByIds>(SaolaConfiguration::Instance().GetRoot() + "event-queues/([^/]*)", true);
   OrthancPlugins::RegisterRestCallback<UpdateTransferJobs>(SaolaConfiguration::Instance().GetRoot() + "transfer-jobs/([^/]*)/([^/]*)", true);
   OrthancPlugins::RegisterRestCallback<ExportSingleResource>(SaolaConfiguration::Instance().GetRoot() + "export", true);
-  OrthancPlugins::RegisterRestCallback<DeleteStudyResource>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/delete", true); // For compatibility
-  OrthancPlugins::RegisterRestCallback<DicomCStoreStudy>(SaolaConfiguration::Instance().GetRoot() + "modalities/([^/]*)/store", true);  // For compatibility
+  OrthancPlugins::RegisterRestCallback<DeleteStudyResource>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/delete", true);    // For compatibility
+  OrthancPlugins::RegisterRestCallback<DicomCStoreStudy>(SaolaConfiguration::Instance().GetRoot() + "modalities/([^/]*)/store", true);     // For compatibility
+  OrthancPlugins::RegisterRestCallback<GetStudyStatistics>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/statistics", true); // For compatibility
 
   OrthancPlugins::OrthancConfiguration dicomWebConfiguration;
   {
@@ -758,11 +795,9 @@ void RegisterRestEndpoint()
     if (DICOM_WEB_ROOT.back() == '/')
     {
       DICOM_WEB_ROOT.pop_back();
-
     }
     OrthancPlugins::RegisterRestCallback<DicomStowRsStudy>(DICOM_WEB_ROOT + SaolaConfiguration::Instance().GetRoot() + "servers/([^/]*)/stow", true);
   }
-
 
   OrthancPlugins::RegisterRestCallback<SplitStudy>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/split", true);                   // For compatibility
   OrthancPlugins::RegisterRestCallback<CheckStudyDuplicated>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/is-duplicated", true); // For compatibility

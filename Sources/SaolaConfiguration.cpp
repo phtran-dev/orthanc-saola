@@ -6,6 +6,11 @@
 #include <Logging.h>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
+
+static const std::string ORTHANC_STORAGE = "OrthancStorage";
+static const std::string STORAGE_DIRECTORY = "StorageDirectory";
+static std::string DB_NAME = "saola-plugin";
 
 SaolaConfiguration::SaolaConfiguration(/* args */)
 {
@@ -19,6 +24,13 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->root_ = saola.GetStringValue("Root", "/saola/");
   this->maxRetry_ = saola.GetIntegerValue("MaxRetry", 5);
   this->throttleDelayMs_ = saola.GetIntegerValue("ThrottleDelayMs", 100); // Default 100 milliseconds
+
+
+  const char *databaseServerIdentifier_ = OrthancPluginGetDatabaseServerIdentifier(OrthancPlugins::GetGlobalContext());
+  std::string pathStorage = configuration.GetStringValue(STORAGE_DIRECTORY, ORTHANC_STORAGE);
+  LOG(WARNING) << "SaolaConfiguration - Path to the storage area: " << pathStorage;
+  boost::filesystem::path defaultDbPath = boost::filesystem::path(pathStorage) / (DB_NAME + "." + databaseServerIdentifier_ + ".db");
+  this->dbPath_ = saola.GetStringValue("Path", defaultDbPath.string());
 
   this->ApplyConfiguration(saola.GetJson());
 }
@@ -90,6 +102,11 @@ int SaolaConfiguration::GetThrottleExpirationDays() const
 const std::string &SaolaConfiguration::GetRoot() const
 {
   return this->root_;
+}
+
+const std::string& SaolaConfiguration::GetDbPath() const
+{
+  return this->dbPath_;
 }
 
 void SaolaConfiguration::ApplyConfiguration(const Json::Value &config)

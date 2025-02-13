@@ -108,13 +108,16 @@ extern "C"
     try
     {
       OrthancPlugins::OrthancConfiguration configuration;
-      std::string folder = configuration.GetStringValue(STORAGE_DIRECTORY, ORTHANC_STORAGE);
+      // std::string folder = configuration.GetStringValue(STORAGE_DIRECTORY, ORTHANC_STORAGE);
 
-      Orthanc::SystemToolbox::MakeDirectory(folder);
-      std::string path = (boost::filesystem::path(folder) / "saola-plugin.db").string();
+      // Orthanc::SystemToolbox::MakeDirectory(folder);
+      // std::string path = (boost::filesystem::path(folder) / "saola-plugin.db").string();
 
-      LOG(WARNING) << "Path to the database of the Saola plugin: " << path;
-      SaolaDatabase::Instance().Open(path);
+      // LOG(WARNING) << "Path to the database of the Saola plugin: " << path;
+      // SaolaDatabase::Instance().Open(path);
+
+      LOG(WARNING) << "Path to the database of the Saola plugin: " << SaolaConfiguration::Instance().GetDbPath();
+      SaolaDatabase::Instance().Open(SaolaConfiguration::Instance().GetDbPath());
 
       RegisterRestEndpoint();
 

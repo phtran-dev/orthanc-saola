@@ -24,6 +24,8 @@ private:
 
   std::string root_;
 
+  std::string dbPath_;
+
   std::list<std::shared_ptr<AppConfiguration>> apps_;
   
   SaolaConfiguration(/* args */);
@@ -47,6 +49,8 @@ public:
   int GetThrottleDelayMs() const;
   
   const std::string& GetRoot() const;
+
+  const std::string& GetDbPath() const;
 
   void ApplyConfiguration(const Json::Value& config);
 

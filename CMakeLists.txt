@@ -26,7 +26,7 @@ if (ORTHANC_PLUGIN_VERSION STREQUAL "mainline")
   set(ORTHANC_FRAMEWORK_DEFAULT_VERSION "mainline")
   set(ORTHANC_FRAMEWORK_DEFAULT_SOURCE "hg")
 else()
-  set(ORTHANC_FRAMEWORK_DEFAULT_VERSION "1.12.3")
+  set(ORTHANC_FRAMEWORK_DEFAULT_VERSION "1.12.5")
   set(ORTHANC_FRAMEWORK_DEFAULT_SOURCE "web")
 endif()
 
@@ -90,7 +90,7 @@ include(${CMAKE_SOURCE_DIR}/Resources/Orthanc/Plugins/OrthancPluginsExports.cmak
 
 # Check that the Orthanc SDK headers are available
 if (STATIC_BUILD OR NOT USE_SYSTEM_ORTHANC_SDK)
-  include_directories(${CMAKE_SOURCE_DIR}/Resources/Orthanc/Sdk-1.9.0)
+  include_directories(${CMAKE_SOURCE_DIR}/Resources/Orthanc/Sdk-1.12.5)
 else ()
   CHECK_INCLUDE_FILE_CXX(orthanc/OrthancCPlugin.h HAVE_ORTHANC_H)
   if (NOT HAVE_ORTHANC_H)
