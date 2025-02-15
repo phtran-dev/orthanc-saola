@@ -32,6 +32,10 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   boost::filesystem::path defaultDbPath = boost::filesystem::path(pathStorage) / (DB_NAME + "." + databaseServerIdentifier_ + ".db");
   this->dbPath_ = saola.GetStringValue("Path", defaultDbPath.string());
 
+  this->enableInMemJobCache_ = saola.GetBooleanValue("EnableInMemJobCache", false); 
+  this->inMemJobCacheLimit_ = saola.GetIntegerValue("InMemJobCacheLimit", 100);
+  this->inMemJobType_ = saola.GetStringValue("InMemJobCacheType", "DicomModalityStore");
+
   this->ApplyConfiguration(saola.GetJson());
 }
 
@@ -107,6 +111,21 @@ const std::string &SaolaConfiguration::GetRoot() const
 const std::string& SaolaConfiguration::GetDbPath() const
 {
   return this->dbPath_;
+}
+
+const bool SaolaConfiguration::EnableInMemJobCache() const
+{
+  return this->enableInMemJobCache_;
+}
+
+const int SaolaConfiguration::GetInMemJobCacheLimit() const
+{
+  return this->inMemJobCacheLimit_;
+}
+
+const std::string& SaolaConfiguration::GetInMemJobType() const
+{
+  return this->inMemJobType_;
 }
 
 void SaolaConfiguration::ApplyConfiguration(const Json::Value &config)

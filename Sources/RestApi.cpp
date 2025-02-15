@@ -6,11 +6,9 @@
 #include "StableEventDTOUpdate.h"
 #include "StableEventScheduler.h"
 
-// #include "FailedJobDTOCreate.h"
-// #include "FailedJobDTOGet.h"
-// #include "FailedJobFilter.h"
-
 #include "ExporterJob.h"
+
+#include "InMemoryJobCache.h"
 
 #include <Toolbox.h>
 #include <Logging.h>
@@ -556,6 +554,15 @@ void DicomCStoreStudy(OrthancPluginRestOutput *output,
   {
     return OrthancPluginSendMethodNotAllowed(context, output, "Post");
   }
+
+  if (SaolaConfiguration::Instance().EnableInMemJobCache() && InMemoryJobCache::Instance().GetSize() >= SaolaConfiguration::Instance().GetInMemJobCacheLimit())
+  {
+    LOG(ERROR) << "[DicomCStoreStudy] Job " << SaolaConfiguration::Instance().GetInMemJobType() << " has reached limit of " << InMemoryJobCache::Instance().GetSize()
+      << " / " << SaolaConfiguration::Instance().GetInMemJobCacheLimit();
+    return OrthancPluginSendHttpStatusCode(context, output, 503);
+  }
+
+
   const char *modalityId = request->groups[0];
   Json::Value body;
   OrthancPlugins::ReadJson(body, request->body, request->bodySize);
@@ -653,6 +660,61 @@ void GetStudyStatistics(OrthancPluginRestOutput *output,
 
   LOG(INFO) << "[GetStudyStatistics] Cannot get StudyInstanceUID " << request->groups[0] << " statistics";
   return OrthancPluginSendHttpStatusCode(context, output, 404);
+}
+
+void GetSeriesStatistics(OrthancPluginRestOutput *output,
+                         const char *url,
+                         const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+
+  if (request->method != OrthancPluginHttpMethod_Get)
+  {
+    return OrthancPluginSendMethodNotAllowed(context, output, "Get");
+  }
+
+  Json::Value findData, resourceIds;
+  findData["Level"] = "Series";
+  findData["Query"]["SeriesInstanceUID"] = request->groups[0];
+
+  OrthancPlugins::RestApiPost(resourceIds, "/tools/find", findData, false);
+
+  if (resourceIds.isNull() || resourceIds.empty())
+  {
+    LOG(INFO) << "[SeriesInstanceUID] Cannot find StudyInstanceUID " << request->groups[0];
+    return OrthancPluginSendHttpStatusCode(context, output, 404);
+  }
+
+  Json::Value result;
+  OrthancPlugins::RestApiGet(result, "/series/" + resourceIds[0].asString() + "/statistics", false);
+  if (!result.isNull() && !result.empty())
+  {
+    std::string s;
+    OrthancPlugins::WriteFastJson(s, result);
+    return OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+  }
+
+  LOG(INFO) << "[SeriesInstanceUID] Cannot get SeriesInstanceUID " << request->groups[0] << " statistics";
+  return OrthancPluginSendHttpStatusCode(context, output, 404);
+}
+
+void GetInMemoryJobCache(OrthancPluginRestOutput *output,
+                         const char *url,
+                         const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+
+  if (request->method != OrthancPluginHttpMethod_Get)
+  {
+    return OrthancPluginSendMethodNotAllowed(context, output, "Get");
+  }
+
+  Json::Value jobs;
+  InMemoryJobCache::Instance().GetJobs(jobs);
+
+  std::string s;
+  OrthancPlugins::WriteFastJson(s, jobs);
+  return OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
 }
 
 static bool CheckSplit(OrthancPluginContext *context, const std::string &studyId)
@@ -782,6 +844,8 @@ void RegisterRestEndpoint()
   OrthancPlugins::RegisterRestCallback<DeleteStudyResource>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/delete", true);    // For compatibility
   OrthancPlugins::RegisterRestCallback<DicomCStoreStudy>(SaolaConfiguration::Instance().GetRoot() + "modalities/([^/]*)/store", true);     // For compatibility
   OrthancPlugins::RegisterRestCallback<GetStudyStatistics>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/statistics", true); // For compatibility
+  OrthancPlugins::RegisterRestCallback<GetSeriesStatistics>(SaolaConfiguration::Instance().GetRoot() + "series/([^/]*)/statistics", true); // For compatibility
+  OrthancPlugins::RegisterRestCallback<GetInMemoryJobCache>(SaolaConfiguration::Instance().GetRoot() + "jobcache", true);                  // For compatibility
 
   OrthancPlugins::OrthancConfiguration dicomWebConfiguration;
   {

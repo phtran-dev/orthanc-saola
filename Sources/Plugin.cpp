@@ -26,6 +26,7 @@
 #include "RestApi.h"
 #include "JobHandler.h"
 #include "ExporterJob.h"
+#include "InMemoryJobCache.h"
 
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
@@ -63,12 +64,16 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
     }
     break;
 
+  case OrthancPluginChangeType_JobSubmitted:
+    Saola::OnJobSubmitted(resourceId);
+    break;
+
   case OrthancPluginChangeType_JobSuccess:
-    OnJobSuccess(resourceId);
+    Saola::OnJobSuccess(resourceId);
     break;
 
   case OrthancPluginChangeType_JobFailure:
-    OnJobFailure(resourceId);
+    Saola::OnJobFailure(resourceId);
     break;
 
   default:

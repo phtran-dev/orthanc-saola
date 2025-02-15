@@ -16,6 +16,12 @@ private:
 
   bool enableRemoveFile_;
 
+  bool enableInMemJobCache_;
+
+  int inMemJobCacheLimit_;
+
+  std::string inMemJobType_;
+
   int throttleExpirationDays_;
 
   int maxRetry_ = 5;
@@ -27,7 +33,7 @@ private:
   std::string dbPath_;
 
   std::list<std::shared_ptr<AppConfiguration>> apps_;
-  
+
   SaolaConfiguration(/* args */);
 
 public:
@@ -51,6 +57,12 @@ public:
   const std::string& GetRoot() const;
 
   const std::string& GetDbPath() const;
+
+  const bool EnableInMemJobCache() const;
+
+  const int GetInMemJobCacheLimit() const;
+
+  const std::string& GetInMemJobType() const;
 
   void ApplyConfiguration(const Json::Value& config);
 
