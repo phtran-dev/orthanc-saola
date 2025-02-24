@@ -25,14 +25,13 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->maxRetry_ = saola.GetIntegerValue("MaxRetry", 5);
   this->throttleDelayMs_ = saola.GetIntegerValue("ThrottleDelayMs", 100); // Default 100 milliseconds
 
-
   const char *databaseServerIdentifier_ = OrthancPluginGetDatabaseServerIdentifier(OrthancPlugins::GetGlobalContext());
   std::string pathStorage = configuration.GetStringValue(STORAGE_DIRECTORY, ORTHANC_STORAGE);
   LOG(WARNING) << "SaolaConfiguration - Path to the storage area: " << pathStorage;
   boost::filesystem::path defaultDbPath = boost::filesystem::path(pathStorage) / (DB_NAME + "." + databaseServerIdentifier_ + ".db");
   this->dbPath_ = saola.GetStringValue("Path", defaultDbPath.string());
 
-  this->enableInMemJobCache_ = saola.GetBooleanValue("EnableInMemJobCache", false); 
+  this->enableInMemJobCache_ = saola.GetBooleanValue("EnableInMemJobCache", false);
   this->inMemJobCacheLimit_ = saola.GetIntegerValue("InMemJobCacheLimit", 100);
   this->inMemJobType_ = saola.GetStringValue("InMemJobCacheType", "DicomModalityStore");
 
@@ -108,7 +107,7 @@ const std::string &SaolaConfiguration::GetRoot() const
   return this->root_;
 }
 
-const std::string& SaolaConfiguration::GetDbPath() const
+const std::string &SaolaConfiguration::GetDbPath() const
 {
   return this->dbPath_;
 }
@@ -123,7 +122,7 @@ const int SaolaConfiguration::GetInMemJobCacheLimit() const
   return this->inMemJobCacheLimit_;
 }
 
-const std::string& SaolaConfiguration::GetInMemJobType() const
+const std::string &SaolaConfiguration::GetInMemJobType() const
 {
   return this->inMemJobType_;
 }
@@ -230,6 +229,31 @@ void SaolaConfiguration::ApplyConfiguration(const Json::Value &config)
       app->fieldMapping_.emplace("modalitiesInStudy", ModalitiesInStudy);
       app->fieldMapping_.emplace("numberOfStudyRelatedSeries", NumberOfStudyRelatedSeries);
       app->fieldMapping_.emplace("numberOfStudyRelatedInstances", NumberOfStudyRelatedInstances);
+
+      app->fieldMapping_.emplace("series", Series);
+      app->fieldMapping_.emplace(std::string(Series) + "_seriesInstanceUID", Series_SeriesInstanceUID);
+      app->fieldMapping_.emplace(std::string(Series) + "_seriesDate", Series_SeriesDate);
+      app->fieldMapping_.emplace(std::string(Series) + "_seriesTime", Series_SeriesTime);
+      app->fieldMapping_.emplace(std::string(Series) + "_modality", Series_Modality);
+      app->fieldMapping_.emplace(std::string(Series) + "_manufacturer", Series_Manufacturer);
+      app->fieldMapping_.emplace(std::string(Series) + "_stationName", Series_StationName);
+      app->fieldMapping_.emplace(std::string(Series) + "_seriesDescription", Series_SeriesDescription);
+      app->fieldMapping_.emplace(std::string(Series) + "_bodyPartExamined", Series_BodyPartExamined);
+      app->fieldMapping_.emplace(std::string(Series) + "_sequenceName", Series_SequenceName);
+      app->fieldMapping_.emplace(std::string(Series) + "_protocolName", Series_ProtocolName);
+      app->fieldMapping_.emplace(std::string(Series) + "_seriesNumber", Series_SeriesNumber);
+      app->fieldMapping_.emplace(std::string(Series) + "_cardiacNumberOfImages", Series_CardiacNumberOfImages);
+      app->fieldMapping_.emplace(std::string(Series) + "_imagesInAcquisition", Series_ImagesInAcquisition);
+      app->fieldMapping_.emplace(std::string(Series) + "_numberOfTemporalPositions", Series_NumberOfTemporalPositions);
+      app->fieldMapping_.emplace(std::string(Series) + "_numOfImages", Series_NumOfImages);
+      app->fieldMapping_.emplace(std::string(Series) + "_numOfSlices", Series_NumOfSlices);
+      app->fieldMapping_.emplace(std::string(Series) + "_numOfTimeSlices", Series_NumOfTimeSlices);
+      app->fieldMapping_.emplace(std::string(Series) + "_imageOrientationPatient", Series_ImageOrientationPatient);
+      app->fieldMapping_.emplace(std::string(Series) + "_seriesType", Series_SeriesType);
+      app->fieldMapping_.emplace(std::string(Series) + "_operatorsName", Series_OperatorsName);
+      app->fieldMapping_.emplace(std::string(Series) + "_performedProcedureStepDescription", Series_PerformedProcedureStepDescription);
+      app->fieldMapping_.emplace(std::string(Series) + "_acquisitionDeviceProcessingDescription", Series_AcquisitionDeviceProcessingDescription);
+      app->fieldMapping_.emplace(std::string(Series) + "_contrastBolusAgent", Series_ContrastBolusAgent);
     }
 
     if (appConfig["FieldMappingOverwrite"].asBool())
