@@ -30,6 +30,8 @@ private:
 
   std::string root_;
 
+  std::string databaseServerIdentifier_;
+
   std::string dbPath_;
 
   std::list<std::shared_ptr<AppConfiguration>> apps_;
@@ -55,6 +57,8 @@ public:
   int GetThrottleDelayMs() const;
   
   const std::string& GetRoot() const;
+
+  const std::string& GetDataBaseServerIdentifier() const;
 
   const std::string& GetDbPath() const;
 

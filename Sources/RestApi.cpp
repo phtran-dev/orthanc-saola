@@ -200,12 +200,14 @@ static void GetStableEvents(OrthancPluginRestOutput *output,
 
   std::list<StableEventDTOGet> events;
   SaolaDatabase::Instance().FindAll(page, events);
-  Json::Value answer = Json::arrayValue;
+  Json::Value answer = Json::objectValue;
+  answer["databaseIdentifier"] = SaolaConfiguration::Instance().GetDataBaseServerIdentifier();
+  answer["events"] = Json::arrayValue;
   for (const auto &event : events)
   {
     Json::Value value;
     event.ToJson(value);
-    answer.append(value);
+    answer["events"].append(value);
   }
 
   std::string s = answer.toStyledString();

@@ -25,7 +25,7 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->maxRetry_ = saola.GetIntegerValue("MaxRetry", 5);
   this->throttleDelayMs_ = saola.GetIntegerValue("ThrottleDelayMs", 100); // Default 100 milliseconds
 
-  const char *databaseServerIdentifier_ = OrthancPluginGetDatabaseServerIdentifier(OrthancPlugins::GetGlobalContext());
+  this->databaseServerIdentifier_ = OrthancPluginGetDatabaseServerIdentifier(OrthancPlugins::GetGlobalContext());
   std::string pathStorage = configuration.GetStringValue(STORAGE_DIRECTORY, ORTHANC_STORAGE);
   LOG(WARNING) << "SaolaConfiguration - Path to the storage area: " << pathStorage;
   boost::filesystem::path defaultDbPath = boost::filesystem::path(pathStorage) / (DB_NAME + "." + databaseServerIdentifier_ + ".db");
@@ -105,6 +105,11 @@ int SaolaConfiguration::GetThrottleExpirationDays() const
 const std::string &SaolaConfiguration::GetRoot() const
 {
   return this->root_;
+}
+
+const std::string &SaolaConfiguration::GetDataBaseServerIdentifier() const
+{
+  return this->databaseServerIdentifier_;
 }
 
 const std::string &SaolaConfiguration::GetDbPath() const
