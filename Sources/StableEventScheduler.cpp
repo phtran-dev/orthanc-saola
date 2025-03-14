@@ -78,7 +78,7 @@ static void GetMainDicomTags(const std::string &resourceId, const Orthanc::Resou
   // Find find the best Series
   std::set<std::string> bodyPartExamineds;
   std::set<std::string> modalitiesInStudy;
-  std::string instanceId;
+  std::string nonSRInstanceId, iid;
 
   mainDicomTags[Series] = Json::arrayValue;
 
@@ -105,15 +105,22 @@ static void GetMainDicomTags(const std::string &resourceId, const Orthanc::Resou
     std::string modality = seriesMetadata["MainDicomTags"]["Modality"].asString();
     std::transform(modality.begin(), modality.end(), modality.begin(), ::toupper);
     modalitiesInStudy.insert(modality);
+    iid = seriesMetadata["Instances"][0].asString();
     if (modality != "SR")
     {
-      instanceId = seriesMetadata["Instances"][0].asString();
+      nonSRInstanceId = seriesMetadata["Instances"][0].asString();
     }
   }
 
+  if (nonSRInstanceId.empty())
+  {
+    // In case there is only SR series. Make sure nonSRInstanceId is not NULL
+    nonSRInstanceId = iid;
+  }
+
   Json::Value instanceMetadata, instanceTags;
-  OrthancPlugins::RestApiGet(instanceMetadata, "/instances/" + instanceId + "/metadata?expand", false); // From 1.97 version
-  OrthancPlugins::RestApiGet(instanceTags, "/instances/" + std::string(instanceId) + "/simplified-tags", false);
+  OrthancPlugins::RestApiGet(instanceMetadata, "/instances/" + nonSRInstanceId + "/metadata?expand", false); // From 1.97 version
+  OrthancPlugins::RestApiGet(instanceTags, "/instances/" + std::string(nonSRInstanceId) + "/simplified-tags", false);
   mainDicomTags["RemoteAET"] = instanceMetadata["RemoteAET"];
   mainDicomTags["RemoteIP"] = instanceMetadata["RemoteIP"];
 
