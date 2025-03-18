@@ -287,6 +287,12 @@ static void PrepareBody(Json::Value &body, const AppConfiguration &appConfig, co
     body["Level"] = dto.resource_type_;
     body["ID"] = dto.resource_id_;
   }
+  else if (appConfig.type_ == "StoreSCU")
+  {
+    body.copy(appConfig.fieldValues_);
+    body["Resources"] = Json::arrayValue;
+    body["Resources"].append(dto.resource_id_);
+  }
 }
 
 static bool ProcessAsyncTask(const AppConfiguration &appConfig, StableEventDTOGet &dto, Json::Value &notification)
@@ -528,7 +534,7 @@ static void MonitorTasks(std::list<StableEventDTOGet> &tasks)
 
     Json::Value notification;
     notification[ERROR_MESSAGE] = "";
-    if (appConfig->type_ == "Transfer" || appConfig->type_ == "Exporter")
+    if (appConfig->type_ == "Transfer" || appConfig->type_ == "Exporter" || appConfig->type_ == "StoreSCU")
     {
       if (!ProcessAsyncTask(*appConfig, task, notification))
       {
