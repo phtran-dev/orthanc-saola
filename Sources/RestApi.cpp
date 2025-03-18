@@ -453,7 +453,7 @@ void UpdateTransferJobs(OrthancPluginRestOutput *output,
       StableEventDTOGet dtoGet;
       if (SaolaDatabase::Instance().GetById(dto.queue_id_, dtoGet))
       {
-        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dtoGet.id_, "Lua Trigger Callback returns failure", dtoGet.retry_ + 1));
+        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dtoGet.id_, "Lua Trigger Callback returns failure", dtoGet.retry_ + 1, Saola::GetNextXSecondsFromNowInString(dtoGet.delay_sec_).c_str()));
         ok = true;
       }
     }

@@ -515,12 +515,12 @@ static void MonitorTasks(std::list<StableEventDTOGet> &tasks)
     if (!appConfig)
     {
       LOG(ERROR) << "[MonitorTasks] ERROR Cannot find any AppConfiguration " << task.app_id_;
-      SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, "[MonitorTasks] Cannot find any AppConfiguration", SaolaConfiguration::Instance().GetMaxRetry() + 1));
+      SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, "[MonitorTasks] Cannot find any AppConfiguration", SaolaConfiguration::Instance().GetMaxRetry() + 1, Saola::GetNextXSecondsFromNowInString(60).c_str()));
       SaolaDatabase::Instance().DeleteTransferJobsByQueueId(task.id_);
       continue;
     }
 
-    if (!Saola::IsOverDue(task.creation_time_, task.delay_sec_))
+    if (!Saola::IsOverDue(task.last_updated_time_, task.delay_sec_))
     {
       continue;
     }
@@ -532,7 +532,7 @@ static void MonitorTasks(std::list<StableEventDTOGet> &tasks)
     {
       if (!ProcessAsyncTask(*appConfig, task, notification))
       {
-        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, task.failed_reason_.c_str(), task.retry_ + 1));
+        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, task.failed_reason_.c_str(), task.retry_ + 1, Saola::GetNextXSecondsFromNowInString(task.delay_sec_).c_str()));
         SaolaDatabase::Instance().DeleteTransferJobsByQueueId(task.id_);
         Notification::Instance().SendMessage(notification);
       }
@@ -541,7 +541,7 @@ static void MonitorTasks(std::list<StableEventDTOGet> &tasks)
     {
       if (!ProcessSyncTask(*appConfig, task, notification))
       {
-        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, task.failed_reason_.c_str(), task.retry_ + 1));
+        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, task.failed_reason_.c_str(), task.retry_ + 1, Saola::GetNextXSecondsFromNowInString(task.delay_sec_).c_str()));
         Notification::Instance().SendMessage(notification);
       }
     }

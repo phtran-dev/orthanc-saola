@@ -19,6 +19,7 @@ struct StableEventDTOGet
   int delay_sec_ = 0;
   int retry_;
   std::string failed_reason_;
+  std::string last_updated_time_;
   std::string creation_time_;
 
   StableEventDTOGet()
@@ -34,6 +35,7 @@ struct StableEventDTOGet
                     int delay_sec,
                     int retry,
                     std::string &&failed_reason,
+                    std::string &&last_updated_time,
                     std::string &&creation_time) : id_(id),
                                                    iuid_(iuid),
                                                    resource_id_(resource_id),
@@ -43,6 +45,7 @@ struct StableEventDTOGet
                                                    delay_sec_(delay_sec),
                                                    retry_(retry),
                                                    failed_reason_(failed_reason),
+                                                   last_updated_time_(last_updated_time),
                                                    creation_time_(creation_time)
   {
   }
@@ -54,9 +57,11 @@ struct StableEventDTOGet
     json["resourceId"] = resource_id_;
     json["resourceType"] = resource_type_;
     json["app_id"] = app_id_;
+    json["app_type"] = app_type_;
     json["delaySec"] = delay_sec_;
     json["retry"] = retry_;
     json["failedReason"] = failed_reason_;
+    json["lastUpdatedTime"] = last_updated_time_;
     json["creationTime"] = creation_time_;
     json["now"] = boost::posix_time::to_iso_string(Saola::GetNow());
   }
@@ -66,7 +71,7 @@ struct StableEventDTOGet
     std::stringstream ss;
     ss << "StableEventDTOGet {id=" << this->id_ << ", iuid=" << this->iuid_ << ", resource_id=" << this->resource_id_
        << ", app_id_=" << this->app_id_ << ", app_type_=" << this->app_type_ << ", resource_type=" << this->resource_type_ 
-       << ", retry_=" << this->retry_ << ", delay_sec=" << delay_sec_ << ", creation_time=" 
+       << ", retry_=" << this->retry_ << ", delay_sec=" << delay_sec_ << ", last_updated_time=" << this->last_updated_time_ << ", creation_time=" 
        << this->creation_time_ << ", now=" << boost::posix_time::to_iso_string(Saola::GetNow()) 
        << ", elapsed=" << Saola::Elapsed(this->creation_time_) << "}";
     return ss.str();

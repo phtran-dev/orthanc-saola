@@ -73,7 +73,7 @@ bool SaolaDatabase::GetById(int64_t id, StableEventDTOGet &result)
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
 
-  Orthanc::SQLite::Statement statement(db_, "SELECT id, iuid, resource_id, resource_type, app_id, delay_sec, retry, failed_reason, creation_time FROM StableEventQueues WHERE id=?");
+  Orthanc::SQLite::Statement statement(db_, "SELECT id, iuid, resource_id, resource_type, app_id, app_type, delay_sec, retry, failed_reason, last_updated_time, creation_time FROM StableEventQueues WHERE id=?");
   statement.BindInt(0, id);
   bool ok = false;
   while (statement.Step())
@@ -83,10 +83,12 @@ bool SaolaDatabase::GetById(int64_t id, StableEventDTOGet &result)
     result.resource_id_ = statement.ColumnString(2);
     result.resource_type_ = statement.ColumnString(3);
     result.app_id_ = statement.ColumnString(4);
-    result.delay_sec_ = statement.ColumnInt(5);
-    result.retry_ = statement.ColumnInt(6);
-    result.failed_reason_ = statement.ColumnString(7);
-    result.creation_time_ = statement.ColumnString(8);
+    result.app_type_ = statement.ColumnString(5);
+    result.delay_sec_ = statement.ColumnInt(6);
+    result.retry_ = statement.ColumnInt(7);
+    result.failed_reason_ = statement.ColumnString(8);
+    result.last_updated_time_ = statement.ColumnString(9);
+    result.creation_time_ = statement.ColumnString(10);
     ok = true;
   }
 
@@ -106,7 +108,7 @@ bool SaolaDatabase::GetByIds(const std::list<int64_t> &ids, std::list<StableEven
 
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
-  Orthanc::SQLite::Statement statement(db_, "SELECT id, iuid, resource_id, resource_type, app_id, delay_sec, retry, failed_reason, creation_time FROM StableEventQueues WHERE id IN (" + boost::algorithm::join(ids_, ",") + ")");
+  Orthanc::SQLite::Statement statement(db_, "SELECT id, iuid, resource_id, resource_type, app_id, app_type, delay_sec, retry, failed_reason, last_updated_time, creation_time FROM StableEventQueues WHERE id IN (" + boost::algorithm::join(ids_, ",") + ")");
   bool ok = false;
   while (statement.Step())
   {
@@ -116,10 +118,12 @@ bool SaolaDatabase::GetByIds(const std::list<int64_t> &ids, std::list<StableEven
     result.resource_id_ = statement.ColumnString(2);
     result.resource_type_ = statement.ColumnString(3);
     result.app_id_ = statement.ColumnString(4);
-    result.delay_sec_ = statement.ColumnInt(5);
-    result.retry_ = statement.ColumnInt(6);
-    result.failed_reason_ = statement.ColumnString(7);
-    result.creation_time_ = statement.ColumnString(8);
+    result.app_type_ = statement.ColumnString(5);
+    result.delay_sec_ = statement.ColumnInt(6);
+    result.retry_ = statement.ColumnInt(7);
+    result.failed_reason_ = statement.ColumnString(8);
+    result.last_updated_time_ = statement.ColumnString(9);
+    result.creation_time_ = statement.ColumnString(10);
 
     results.push_back(result);
     ok = true;
@@ -135,7 +139,7 @@ bool SaolaDatabase::GetByIds(const std::string &ids, std::list<StableEventDTOGet
 
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
-  Orthanc::SQLite::Statement statement(db_, "SELECT id, iuid, resource_id, resource_type, app_id, delay_sec, retry, failed_reason, creation_time FROM StableEventQueues WHERE id IN (" + ids + ")");
+  Orthanc::SQLite::Statement statement(db_, "SELECT id, iuid, resource_id, resource_type, app_id, app_type, delay_sec, retry, failed_reason, last_updated_time, creation_time FROM StableEventQueues WHERE id IN (" + ids + ")");
   bool ok = false;
   while (statement.Step())
   {
@@ -145,10 +149,12 @@ bool SaolaDatabase::GetByIds(const std::string &ids, std::list<StableEventDTOGet
     result.resource_id_ = statement.ColumnString(2);
     result.resource_type_ = statement.ColumnString(3);
     result.app_id_ = statement.ColumnString(4);
-    result.delay_sec_ = statement.ColumnInt(5);
-    result.retry_ = statement.ColumnInt(6);
-    result.failed_reason_ = statement.ColumnString(7);
-    result.creation_time_ = statement.ColumnString(8);
+    result.app_type_ = statement.ColumnString(5);
+    result.delay_sec_ = statement.ColumnInt(6);
+    result.retry_ = statement.ColumnInt(7);
+    result.failed_reason_ = statement.ColumnString(8);
+    result.last_updated_time_ = statement.ColumnString(9);
+    result.creation_time_ = statement.ColumnString(10);
 
     results.push_back(result);
     ok = true;
@@ -165,24 +171,26 @@ void SaolaDatabase::FindAll(const Pagination &page, std::list<StableEventDTOGet>
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
 
-  std::string sql = "SELECT * FROM StableEventQueues ORDER BY " + page.sort_by_ + " LIMIT " + std::to_string(page.limit_) + " OFFSET " + std::to_string(page.offset_);
+  std::string sql = "SELECT id, iuid, resource_id, resource_type, app_id, app_type, delay_sec, retry, failed_reason, last_updated_time, creation_time FROM StableEventQueues ORDER BY " + page.sort_by_ + " LIMIT " + std::to_string(page.limit_) + " OFFSET " + std::to_string(page.offset_);
 
   Orthanc::SQLite::Statement statement(db_, sql);
 
   while (statement.Step())
   {
-    StableEventDTOGet r(statement.ColumnInt64(0),
-                        statement.ColumnString(1),
-                        statement.ColumnString(2),
-                        statement.ColumnString(3),
-                        statement.ColumnString(4),
-                        statement.ColumnString(5),
-                        statement.ColumnInt(6),
-                        statement.ColumnInt(7),
-                        statement.ColumnString(8),
-                        statement.ColumnString(9));
+    StableEventDTOGet result;
+    result.id_ = statement.ColumnInt64(0);
+    result.iuid_ = statement.ColumnString(1);
+    result.resource_id_ = statement.ColumnString(2);
+    result.resource_type_ = statement.ColumnString(3);
+    result.app_id_ = statement.ColumnString(4);
+    result.app_type_ = statement.ColumnString(5);
+    result.delay_sec_ = statement.ColumnInt(6);
+    result.retry_ = statement.ColumnInt(7);
+    result.failed_reason_ = statement.ColumnString(8);
+    result.last_updated_time_ = statement.ColumnString(9);
+    result.creation_time_ = statement.ColumnString(10);
 
-    results.push_back(r);
+    results.push_back(result);
   }
 
   transaction.Commit();
@@ -195,24 +203,26 @@ void SaolaDatabase::FindByRetryLessThan(int retry, std::list<StableEventDTOGet> 
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();
 
-  Orthanc::SQLite::Statement statement(db_, "SELECT * FROM StableEventQueues WHERE retry <= ? ORDER BY retry ASC");
+  Orthanc::SQLite::Statement statement(db_, "SELECT id, iuid, resource_id, resource_type, app_id, app_type, delay_sec, retry, failed_reason, last_updated_time, creation_time FROM StableEventQueues WHERE retry <= ? ORDER BY retry ASC");
 
   statement.BindInt(0, retry);
 
   while (statement.Step())
   {
-    StableEventDTOGet r(statement.ColumnInt64(0),
-                        statement.ColumnString(1),
-                        statement.ColumnString(2),
-                        statement.ColumnString(3),
-                        statement.ColumnString(4),
-                        statement.ColumnString(5),
-                        statement.ColumnInt(6),
-                        statement.ColumnInt(7),
-                        statement.ColumnString(8),
-                        statement.ColumnString(9));
+    StableEventDTOGet result;
+    result.id_ = statement.ColumnInt64(0);
+    result.iuid_ = statement.ColumnString(1);
+    result.resource_id_ = statement.ColumnString(2);
+    result.resource_type_ = statement.ColumnString(3);
+    result.app_id_ = statement.ColumnString(4);
+    result.app_type_ = statement.ColumnString(5);
+    result.delay_sec_ = statement.ColumnInt(6);
+    result.retry_ = statement.ColumnInt(7);
+    result.failed_reason_ = statement.ColumnString(8);
+    result.last_updated_time_ = statement.ColumnString(9);
+    result.creation_time_ = statement.ColumnString(10);
 
-    results.push_back(r);
+    results.push_back(result);
   }
 
   transaction.Commit();
@@ -227,10 +237,10 @@ void SaolaDatabase::FindByAppTypeInRetryLessThan(const std::list<std::string> &a
 
   std::string str = boost::algorithm::join(appTypes, "\",\"");
 
-  std::string sql = "SELECT * FROM StableEventQueues WHERE app_type IN (\"" + str + "\") AND retry <= ? ORDER BY retry ASC LIMIT 1000";
+  std::string sql = "SELECT id, iuid, resource_id, resource_type, app_id, app_type, delay_sec, retry, failed_reason, last_updated_time, creation_time FROM StableEventQueues WHERE app_type IN (\"" + str + "\") AND retry <= ? ORDER BY retry ASC LIMIT 1000";
   if (!included)
   {
-    sql = "SELECT * FROM StableEventQueues WHERE app_type NOT IN (\"" + str + "\") AND retry <= ? ORDER BY retry ASC LIMIT 1000";
+    sql = "SELECT id, iuid, resource_id, resource_type, app_id, app_type, delay_sec, retry, failed_reason, last_updated_time, creation_time FROM StableEventQueues WHERE app_type NOT IN (\"" + str + "\") AND retry <= ? ORDER BY retry ASC LIMIT 1000";
   }
 
   Orthanc::SQLite::Statement statement(db_, sql);
@@ -239,18 +249,20 @@ void SaolaDatabase::FindByAppTypeInRetryLessThan(const std::list<std::string> &a
 
   while (statement.Step())
   {
-    StableEventDTOGet r(statement.ColumnInt64(0),
-                        statement.ColumnString(1),
-                        statement.ColumnString(2),
-                        statement.ColumnString(3),
-                        statement.ColumnString(4),
-                        statement.ColumnString(5),
-                        statement.ColumnInt(6),
-                        statement.ColumnInt(7),
-                        statement.ColumnString(8),
-                        statement.ColumnString(9));
+    StableEventDTOGet result;
+    result.id_ = statement.ColumnInt64(0);
+    result.iuid_ = statement.ColumnString(1);
+    result.resource_id_ = statement.ColumnString(2);
+    result.resource_type_ = statement.ColumnString(3);
+    result.app_id_ = statement.ColumnString(4);
+    result.app_type_ = statement.ColumnString(5);
+    result.delay_sec_ = statement.ColumnInt(6);
+    result.retry_ = statement.ColumnInt(7);
+    result.failed_reason_ = statement.ColumnString(8);
+    result.last_updated_time_ = statement.ColumnString(9);
+    result.creation_time_ = statement.ColumnString(10);
 
-    results.push_back(r);
+    results.push_back(result);
   }
 
   transaction.Commit();
@@ -264,7 +276,7 @@ int64_t SaolaDatabase::AddEvent(const StableEventDTOCreate &obj)
   transaction.Begin();
   {
     Orthanc::SQLite::Statement statement(db_, SQLITE_FROM_HERE,
-                                         "INSERT INTO StableEventQueues (iuid, resource_id, resource_type, app_id, app_type, delay_sec, creation_time) VALUES(?, ?, ?, ?, ?, ?, ?)");
+                                         "INSERT INTO StableEventQueues (iuid, resource_id, resource_type, app_id, app_type, delay_sec, last_updated_time, creation_time) VALUES(?, ?, ?, ?, ?, ?, ?, ?)");
     statement.BindString(0, obj.iuid_);
     statement.BindString(1, obj.resource_id_);
     statement.BindString(2, obj.resouce_type_);
@@ -272,6 +284,7 @@ int64_t SaolaDatabase::AddEvent(const StableEventDTOCreate &obj)
     statement.BindString(4, obj.app_type_);
     statement.BindInt(5, obj.delay_);
     statement.BindString(6, boost::posix_time::to_iso_string(Saola::GetNow()));
+    statement.BindString(7, boost::posix_time::to_iso_string(Saola::GetNow()));
     statement.Run();
   }
 
@@ -333,10 +346,11 @@ bool SaolaDatabase::UpdateEvent(const StableEventDTOUpdate &obj)
   transaction.Begin();
   {
     Orthanc::SQLite::Statement statement(db_, SQLITE_FROM_HERE,
-                                         "UPDATE StableEventQueues SET failed_reason=?, retry=? WHERE id=?");
+                                         "UPDATE StableEventQueues SET failed_reason=?, retry=?, last_updated_time=? WHERE id=?");
     statement.BindString(0, obj.failed_reason_);
     statement.BindInt(1, obj.retry_);
-    statement.BindInt64(2, obj.id_);
+    statement.BindString(2, obj.last_updated_time_);
+    statement.BindInt64(3, obj.id_);
     statement.Run();
   }
 
@@ -354,10 +368,10 @@ bool SaolaDatabase::ResetEvents(const std::list<int64_t> &ids)
     ids_.push_back(std::to_string(id));
   }
 
-  std::string sql = "UPDATE StableEventQueues SET failed_reason=?, retry=?";
+  std::string sql = "UPDATE StableEventQueues SET failed_reason=?, retry=?,  last_updated_time=?";
   if (!ids_.empty())
   {
-    sql = "UPDATE StableEventQueues SET failed_reason=?, retry=? WHERE id IN (" + boost::algorithm::join(ids_, ",") + ")";
+    sql = "UPDATE StableEventQueues SET failed_reason=?, retry=?, last_updated_time=? WHERE id IN (" + boost::algorithm::join(ids_, ",") + ")";
   }
 
   Orthanc::SQLite::Transaction transaction(db_);
@@ -366,6 +380,7 @@ bool SaolaDatabase::ResetEvents(const std::list<int64_t> &ids)
     Orthanc::SQLite::Statement statement(db_, sql);
     statement.BindString(0, "Reset");
     statement.BindInt(1, 0);
+    statement.BindString(2, boost::posix_time::to_iso_string(Saola::GetNow()));
     statement.Run();
   }
 

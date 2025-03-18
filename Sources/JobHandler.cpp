@@ -72,7 +72,7 @@ namespace Saola
         {
           dtoGet.retry_ += 1;
           LOG(INFO) << "[OnJobFailure] Updating queue " << dtoGet.ToJsonString();
-          SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dtoGet.id_, "Callback OnJobFailure triggered", dtoGet.retry_));
+          SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dtoGet.id_, "Callback OnJobFailure triggered", dtoGet.retry_, Saola::GetNextXSecondsFromNowInString(dtoGet.delay_sec_).c_str()));
         }
         else
         {

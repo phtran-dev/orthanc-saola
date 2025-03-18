@@ -8,6 +8,7 @@ CREATE TABLE StableEventQueues(
   delay_sec INTEGER DEFAULT 0,
   retry INTEGER DEFAULT 0,
   failed_reason TEXT,
+  last_updated_time TEXT,
   creation_time TEXT
 );
 
