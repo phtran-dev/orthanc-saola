@@ -132,6 +132,16 @@
         "FieldValues": [{"ExportDir": "/tmp/upload-dicom"}]
       },
       {
+        "Id": "Orthanc32",
+        "Enable": true,
+        "FieldMappingOverwrite": true,
+        "Type": "StoreSCU",
+        "Delay": 2, // Delay in seconds
+        "Url": "/modalities/ORTHANC32/store",
+        "Method": "POST",
+        "FieldValues": [{"Synchronous": false}, {"LocalAet": "ORTHANC"}, {"MoveOriginatorAet": "ORTHANC"}]
+      },
+      {
         "Id": "StoreServer1",
         "Enable": true,
         "FieldMappingOverwrite": false,
