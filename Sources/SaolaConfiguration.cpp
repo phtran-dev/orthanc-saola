@@ -2,6 +2,10 @@
 #include "Constants.h"
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
+#include "Database/AppConfigDatabase.h"
+
+#include <EmbeddedResources.h>
+
 #include <Toolbox.h>
 #include <Logging.h>
 
@@ -35,7 +39,16 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->inMemJobCacheLimit_ = saola.GetIntegerValue("InMemJobCacheLimit", 100);
   this->inMemJobType_ = saola.GetStringValue("InMemJobCacheType", "DicomModalityStore");
 
-  this->ApplyConfiguration(saola.GetJson());
+  // if (saola.GetJson().isMember("Apps"))
+  // {
+  //   this->ApplyConfiguration(saola.GetJson()["Apps"]);
+  // }
+
+  Saola::AppConfigDatabase::Instance().Open("http://localhost:4001");
+  Json::Value apps;
+  Saola::AppConfigDatabase::Instance().GetAppConfigs(apps);
+
+  this->ApplyConfiguration(apps);
 }
 
 SaolaConfiguration &SaolaConfiguration::Instance()
@@ -44,21 +57,6 @@ SaolaConfiguration &SaolaConfiguration::Instance()
   return configuration_;
 }
 
-std::string id_;
-
-bool enable_;
-
-std::string type_;
-
-unsigned int delay_ = 0;
-
-std::string url_;
-
-std::string authentication_;
-
-std::map<std::string, std::string> fieldMapping_;
-
-std::map<std::string, std::string> fieldValues_;
 
 const std::shared_ptr<AppConfiguration> SaolaConfiguration::GetAppConfigurationById(const std::string &id) const
 {
@@ -132,14 +130,10 @@ const std::string &SaolaConfiguration::GetInMemJobType() const
   return this->inMemJobType_;
 }
 
-void SaolaConfiguration::ApplyConfiguration(const Json::Value &config)
+void SaolaConfiguration::ApplyConfiguration(const Json::Value &appConfigs)
 {
-  if (!config.isMember("Apps"))
-  {
-    return;
-  }
   std::list<std::shared_ptr<AppConfiguration>> apps;
-  for (const auto &appConfig : config["Apps"])
+  for (const auto &appConfig : appConfigs)
   {
     // Validate configurations
     if (!appConfig.isMember("Id") || !appConfig.isMember("Type") || !appConfig.isMember("Url") || !appConfig.isMember("Enable"))
@@ -266,9 +260,12 @@ void SaolaConfiguration::ApplyConfiguration(const Json::Value &config)
       app->fieldMapping_.clear();
     }
 
-    for (auto &mName : appConfig["FieldMapping"].getMemberNames())
+    for (auto &valueMap : appConfig["FieldMapping"])
     {
-      app->fieldMapping_[mName] = appConfig["FieldMapping"][mName];
+      for (Json::ValueConstIterator it = valueMap.begin(); it != valueMap.end(); ++it)
+      {
+        app->fieldMapping_[it.key().asString()] = *it;
+      }
     }
 
     for (auto &valueMap : appConfig["FieldValues"])

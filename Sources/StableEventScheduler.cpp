@@ -187,31 +187,31 @@ static void GetMainDicomTags(const std::string &resourceId, const Orthanc::Resou
   mainDicomTags["stable"] = true;
 }
 
-static void ConstructSeries(const std::map<std::string, std::string>& fieldMapping, const std::string& prefix, const Json::Value& series, Json::Value& result)
+static void ConstructSeries(const Json::Value& fieldMapping, const std::string& prefix, const Json::Value& series, Json::Value& result)
 {
   // get all value from appconfig where first is series_XXXXX
-  for (auto& m : fieldMapping)
+  for (Json::ValueConstIterator it = fieldMapping.begin(); it != fieldMapping.end(); ++it)
   {
-    if (series.isMember(m.second))
+    if (series.isMember((*it).asString()))
     {
-      auto pos = m.first.find(prefix);
+      auto pos = (it.key().asString()).find(prefix);
       if (pos != std::string::npos)
       {
-        auto key = m.first.substr(m.first.find(prefix) + prefix.length());
-        result[key] = series[m.second];
+        auto key = (it.key().asString()).substr(pos + prefix.length());
+        result[key] = series[(*it).asString()];
       }
     }
   }
 }
 
-static void FilterFieldMappingLevel(const std::string& prefix, const std::map<std::string, std::string>& source, std::map<std::string, std::string>& target)
+static void FilterFieldMappingLevel(const std::string& prefix, const Json::Value& source, Json::Value& target)
 {
-  for (auto& m : source)
+  for (Json::ValueConstIterator it = source.begin(); it != source.end(); ++it)
   {
-    if (m.first.find(prefix) != std::string::npos)
+    if (it.key().asString().find(prefix) != std::string::npos)
     {
       // Found
-      target[m.first] = source.at(m.first);
+      target[it.key().asString()] = *it;
     }
   }
 }
@@ -220,31 +220,57 @@ static void ConstructAndSendMessage(const AppConfiguration &appConfig, const Jso
 {
   Json::Value body;
   std::string seriesPrefix = Series + std::string("_");
-  for (auto &field : appConfig.fieldMapping_)
+  for (Json::ValueConstIterator it = appConfig.fieldMapping_.begin(); it != appConfig.fieldMapping_.end(); ++it)
   {
-
     // Process field "Series"
-    if (field.first == "series" && mainDicomTags.isMember(field.second))
+    if (it.key().asString() == "series" && mainDicomTags.isMember((*it).asString()))
     {
-      std::map<std::string, std::string> newMappings;
+      Json::Value newMappings = Json::objectValue;
       // Filter fields which start with "Series_"
       FilterFieldMappingLevel(seriesPrefix, appConfig.fieldMapping_, newMappings);
-
-      body[field.first] = Json::arrayValue;
-      for (auto& series : mainDicomTags[field.second])
+      body[it.key().asString()] = Json::arrayValue;
+      for (auto& series : mainDicomTags[(*it).asString()])
       {
         Json::Value val;
         ConstructSeries(newMappings, seriesPrefix, series, val);
-        body[field.first].append(val);
+        body[it.key().asString()].append(val);
       }
       continue;
     }
+
     // Process fields not starting with "Series_"
-    if (field.first.find(seriesPrefix) == std::string::npos && mainDicomTags.isMember(field.second))
+    if ((it.key().asString()).find(seriesPrefix) == std::string::npos && mainDicomTags.isMember((*it).asString()))
     {
-      body[field.first] = mainDicomTags[field.second];
+      body[it.key().asString()] = mainDicomTags[(*it).asString()];
     }
   }
+
+
+  // for (auto &field : appConfig.fieldMapping_.)
+  // {
+
+  //   // Process field "Series"
+  //   if (field.first == "series" && mainDicomTags.isMember(field.second))
+  //   {
+  //     std::map<std::string, std::string> newMappings;
+  //     // Filter fields which start with "Series_"
+  //     FilterFieldMappingLevel(seriesPrefix, appConfig.fieldMapping_, newMappings);
+
+  //     body[field.first] = Json::arrayValue;
+  //     for (auto& series : mainDicomTags[field.second])
+  //     {
+  //       Json::Value val;
+  //       ConstructSeries(newMappings, seriesPrefix, series, val);
+  //       body[field.first].append(val);
+  //     }
+  //     continue;
+  //   }
+  //   // Process fields not starting with "Series_"
+  //   if (field.first.find(seriesPrefix) == std::string::npos && mainDicomTags.isMember(field.second))
+  //   {
+  //     body[field.first] = mainDicomTags[field.second];
+  //   }
+  // }
 
   for (const auto &member : appConfig.fieldValues_.getMemberNames())
   {

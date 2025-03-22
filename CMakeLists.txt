@@ -107,7 +107,9 @@ add_definitions(
 
 EmbedResources(
   PREPARE_DATABASE  ${CMAKE_SOURCE_DIR}/Sources/PrepareDatabase.sql
+  PREPARE_APPCONFIG_DATABASE  ${CMAKE_SOURCE_DIR}/Sources/Database/PrepareAppConfigDatabase.sql
   )
+
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR
     ${CMAKE_SYSTEM_NAME} STREQUAL "kFreeBSD" OR
@@ -138,6 +140,7 @@ add_custom_target(
           
 add_library(OrthancSaola SHARED
   Resources/Orthanc/Plugins/OrthancPluginCppWrapper.cpp
+  Sources/Database/AppConfigDatabase.cpp
   Sources/SaolaDatabase.cpp
   Sources/SaolaConfiguration.cpp
   Sources/RemoveFileScheduler.cpp

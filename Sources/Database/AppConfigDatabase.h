@@ -11,7 +11,7 @@
 
 #include <json/value.h>
 
-namespace Itech
+namespace Saola
 {
   class AppConfigDatabase : public boost::noncopyable
   {
@@ -24,8 +24,6 @@ namespace Itech
   public:
     static AppConfigDatabase& Instance();
     void Open(const std::string& url);
-    void OpenInMemory();  // For unit tests
-
     void GetAppConfigs(Json::Value& appConfigs);
     void GetAppConfigById(Json::Value& appConfig, const std::string& id);
     bool DeleteAppConfigById(const std::string& id);

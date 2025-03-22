@@ -7,7 +7,7 @@
 
   #include <boost/algorithm/string.hpp>
 
-namespace Itech
+namespace Saola
 {
   AppConfigDatabase& AppConfigDatabase::Instance()
   {
@@ -15,7 +15,7 @@ namespace Itech
     return db;
   }
 
-  void ConfigDatabase::Initialize()
+  void AppConfigDatabase::Initialize()
   {
     bool existing = false;
 
@@ -39,7 +39,7 @@ namespace Itech
             {
               for (const auto& value : values)
               {
-                if (value.asString() == "DicomServer")
+                if (value.asString() == "AppConfiguration")
                 {
                   existing = true;
                 }
@@ -53,7 +53,7 @@ namespace Itech
     if (!existing)
     {
       std::string sql;
-      Orthanc::EmbeddedResources::GetFileResource(sql, Orthanc::EmbeddedResources::PREPARE_CONFIG_DATABASE);
+      Orthanc::EmbeddedResources::GetFileResource(sql, Orthanc::EmbeddedResources::PREPARE_APPCONFIG_DATABASE);
       Json::Value innerSQL = Json::arrayValue;
       innerSQL.append(sql);
       client_.SetUrl(this->url_ + "/db/execute");
@@ -69,25 +69,14 @@ namespace Itech
   }
 
 
-  void ConfigDatabase::Open(const std::string& url)
+  void AppConfigDatabase::Open(const std::string& url)
   {
     boost::mutex::scoped_lock lock(mutex_);
     this->url_ = url;
-    // // db_.Open(path);
-    // db_.OpenInMemory();
-
-
     Initialize();
   }
     
 
-  void ConfigDatabase::OpenInMemory()
-  {
-    // boost::mutex::scoped_lock lock(mutex_);
-    // db_.OpenInMemory();
-    // Initialize();
-  }
-    
   void toJsonArray(Json::Value& json, const std::string& value, const char* delim)
   {
     if (value.empty())
@@ -115,11 +104,11 @@ namespace Itech
     return boost::join(res, ",");
   }
 
-  void ConfigDatabase::GetDicomServerConfigs(Json::Value& appConfigs)
+  void AppConfigDatabase::GetAppConfigs(Json::Value& appConfigs)
   {
     try 
     {
-      std::string sql = "SELECT Id, Enable, Type, Delay, Url, Authentication, Method, FieldMappingOverwrite, FieldMapping, FieldValues FROM AppConfiguration";
+      std::string sql = "SELECT Id, Enable, Type, Delay, Url, Authentication, Method, Timeout, FieldMappingOverwrite, FieldMapping, FieldValues, LuaCallback FROM AppConfiguration";
 
       std::string encoded_sql;
       Orthanc::Toolbox::UriEncode(encoded_sql, sql);
@@ -139,26 +128,34 @@ namespace Itech
             {
               Json::Value config;
               config["Id"] = value[0];
-              config["Enable"] = value[1];
+              if (!value[1].isNull())
+              {
+                config["Enable"] = value[1].asString() == "true";
+              }
+              else
+              {
+                config["Enable"] = false;
+              }
               config["Type"] = value[2];
               config["Delay"] = value[3];
               config["Url"] = value[4];
               config["Authentication"] = value[5];
               config["Method"] = value[6];
               config["Timeout"] = value[7];
-              config["FieldMappingOverwrite"] = value[8];
-              toJsonArray(config["FieldMapping"], value[9].asString(), ",");
-              config["FieldValues"] = value[10];
+              if (!value[8].isNull())
+              {
+                config["FieldMappingOverwrite"] = value[8].asString() == "true";
+              }
+              else
+              {
+                config["FieldMappingOverwrite"] = false;
+              }
+
+              Orthanc::Toolbox::ReadJson(config["FieldMapping"], value[9].asString());
+              Orthanc::Toolbox::ReadJson(config["FieldValues"], value[10].asString());
+              
               config["LuaCallback"] = value[11];
-
-
-              toJsonArray(config["Labels"], value[3].asString(), ",");
-              config["LabelsConstraint"] = value[4];
-              config["LabelsStoreLevels"] = Json::arrayValue;
-              toJsonArray(config["LabelsStoreLevels"], value[5].asString(), ",");
-              config["HospitalId"] = value[6];
-              config["DepartmentId"] = value[7];
-              serverConfigs.append(config);
+              appConfigs.append(config);
             }
           }
         }
@@ -171,7 +168,7 @@ namespace Itech
     
   }
 
-  void ConfigDatabase::GetDicomServerConfigById(Json::Value& serverConfig, const std::string& id)
+  void AppConfigDatabase::GetAppConfigById(Json::Value& serverConfig, const std::string& id)
   {
     try 
     {
@@ -220,7 +217,7 @@ namespace Itech
   }
 
   
-  void ConfigDatabase::SaveDicomServer(Json::Value& serverConfig)
+  void AppConfigDatabase::SaveAppConfig(Json::Value& serverConfig)
   {
     boost::mutex::scoped_lock lock(mutex_);
     std::string id = Orthanc::Toolbox::GenerateUuid();
@@ -266,7 +263,7 @@ namespace Itech
     }
   }
 
-  bool ConfigDatabase::DeleteDicomServerConfigById(const std::string& id)
+  bool AppConfigDatabase::DeleteAppConfigById(const std::string& id)
   {
     boost::mutex::scoped_lock lock(mutex_);
 
@@ -299,7 +296,7 @@ namespace Itech
     }
     catch (Orthanc::OrthancException& e)
     {
-      LOG(ERROR) << "[ConfigDatabase::GetDicomServerConfigById] Cannot get id="<< id << " from DicomServer err=" << e.What(); 
+      LOG(ERROR) << "[AppConfigDatabase::DeleteAppConfigById] Cannot get id="<< id << " from DicomServer err=" << e.What(); 
     }
     
     return false;
