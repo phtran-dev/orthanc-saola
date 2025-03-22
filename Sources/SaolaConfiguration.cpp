@@ -202,63 +202,63 @@ void SaolaConfiguration::ApplyConfiguration(const Json::Value &config)
     if (app->type_ == "StoreServer" || app->type_ == "Ris")
     {
       // Default Mapping
-      app->fieldMapping_.emplace("aeTitle", RemoteAET);
-      app->fieldMapping_.emplace("ipAddress", RemoteIP);
-      app->fieldMapping_.emplace("accessionNumber", AccessionNumber);
-      app->fieldMapping_.emplace("patientId", PatientID);
-      app->fieldMapping_.emplace("patientName", PatientName);
-      app->fieldMapping_.emplace("gender", PatientSex);
-      app->fieldMapping_.emplace("age", PatientAge);
-      app->fieldMapping_.emplace("birthDate", PatientBirthDate);
-      app->fieldMapping_.emplace("bodyPartExamined", BodyPartExamined);
-      app->fieldMapping_.emplace("description", StudyDescription);
-      app->fieldMapping_.emplace("institutionName", InstitutionName);
-      app->fieldMapping_.emplace("studyDate", StudyDate);
-      app->fieldMapping_.emplace("studyTime", StudyTime);
-      app->fieldMapping_.emplace("studyInstanceUID", StudyInstanceUID);
-      app->fieldMapping_.emplace("manufacturerModelName", ManufacturerModelName);
-      app->fieldMapping_.emplace("modalityType", Modality);
-      app->fieldMapping_.emplace("numOfImages", CountInstances);
-      app->fieldMapping_.emplace("numOfSeries", CountSeries);
-      app->fieldMapping_.emplace("operatorName", OperatorsName);
-      app->fieldMapping_.emplace("referringPhysician", ReferringPhysicianName);
-      app->fieldMapping_.emplace("stationName", StationName);
+      app->fieldMapping_["aeTitle"] =  "RemoteAET";
+      app->fieldMapping_["ipAddress"] = "RemoteIP";
+      app->fieldMapping_["accessionNumber"] = "AccessionNumber";
+      app->fieldMapping_["patientId"] = "PatientID";
+      app->fieldMapping_["patientName"] = "PatientName";
+      app->fieldMapping_["gender"] = "PatientSex";
+      app->fieldMapping_["age"] = "PatientAge";
+      app->fieldMapping_["birthDate"] = "PatientBirthDate";
+      app->fieldMapping_["bodyPartExamined"] = "BodyPartExamined";
+      app->fieldMapping_["description"] = "StudyDescription";
+      app->fieldMapping_["institutionName"] = "InstitutionName";
+      app->fieldMapping_["studyDate"] = "StudyDate";
+      app->fieldMapping_["studyTime"] = "StudyTime";
+      app->fieldMapping_["studyInstanceUID"] = "StudyInstanceUID";
+      app->fieldMapping_["manufacturerModelName"] = "ManufacturerModelName";
+      app->fieldMapping_["modalityType"] = "Modality";
+      app->fieldMapping_["numOfImages"] = "CountInstances";
+      app->fieldMapping_["numOfSeries"] = "CountSeries";
+      app->fieldMapping_["operatorName"] = "OperatorsName";
+      app->fieldMapping_["referringPhysician"] = "ReferringPhysicianName";
+      app->fieldMapping_["stationName"] = "StationName";
 
-      app->fieldMapping_.emplace("storeId", StoreID);
-      app->fieldMapping_.emplace("storeNumOfStudies", CountStudies);
-      app->fieldMapping_.emplace("storeSize", TotalDiskSizeMB);
-      app->fieldMapping_.emplace("publicStudyUID", PublicStudyUID);
-      app->fieldMapping_.emplace("studyNumOfSeries", CountSeries);
-      app->fieldMapping_.emplace("studyNumOfInstances", CountInstances);
-      app->fieldMapping_.emplace("studySize", DicomDiskSizeMB);
-      app->fieldMapping_.emplace("modalitiesInStudy", ModalitiesInStudy);
-      app->fieldMapping_.emplace("numberOfStudyRelatedSeries", NumberOfStudyRelatedSeries);
-      app->fieldMapping_.emplace("numberOfStudyRelatedInstances", NumberOfStudyRelatedInstances);
+      app->fieldMapping_["storeId"] = "StoreID";
+      app->fieldMapping_["storeNumOfStudies"] = "CountStudies";
+      app->fieldMapping_["storeSize"] = "TotalDiskSizeMB";
+      app->fieldMapping_["publicStudyUID"] = "PublicStudyUID";
+      app->fieldMapping_["studyNumOfSeries"] = "CountSeries";
+      app->fieldMapping_["studyNumOfInstances"] = "CountInstances";
+      app->fieldMapping_["studySize"] = "DicomDiskSizeMB";
+      app->fieldMapping_["modalitiesInStudy"] = "ModalitiesInStudy";
+      app->fieldMapping_["numberOfStudyRelatedSeries"] = "NumberOfStudyRelatedSeries";
+      app->fieldMapping_["numberOfStudyRelatedInstances"] = "NumberOfStudyRelatedInstances";
 
-      app->fieldMapping_.emplace("series", Series);
-      app->fieldMapping_.emplace(std::string(Series) + "_seriesInstanceUID", Series_SeriesInstanceUID);
-      app->fieldMapping_.emplace(std::string(Series) + "_seriesDate", Series_SeriesDate);
-      app->fieldMapping_.emplace(std::string(Series) + "_seriesTime", Series_SeriesTime);
-      app->fieldMapping_.emplace(std::string(Series) + "_modality", Series_Modality);
-      app->fieldMapping_.emplace(std::string(Series) + "_manufacturer", Series_Manufacturer);
-      app->fieldMapping_.emplace(std::string(Series) + "_stationName", Series_StationName);
-      app->fieldMapping_.emplace(std::string(Series) + "_seriesDescription", Series_SeriesDescription);
-      app->fieldMapping_.emplace(std::string(Series) + "_bodyPartExamined", Series_BodyPartExamined);
-      app->fieldMapping_.emplace(std::string(Series) + "_sequenceName", Series_SequenceName);
-      app->fieldMapping_.emplace(std::string(Series) + "_protocolName", Series_ProtocolName);
-      app->fieldMapping_.emplace(std::string(Series) + "_seriesNumber", Series_SeriesNumber);
-      app->fieldMapping_.emplace(std::string(Series) + "_cardiacNumberOfImages", Series_CardiacNumberOfImages);
-      app->fieldMapping_.emplace(std::string(Series) + "_imagesInAcquisition", Series_ImagesInAcquisition);
-      app->fieldMapping_.emplace(std::string(Series) + "_numberOfTemporalPositions", Series_NumberOfTemporalPositions);
-      app->fieldMapping_.emplace(std::string(Series) + "_numOfImages", Series_NumOfImages);
-      app->fieldMapping_.emplace(std::string(Series) + "_numOfSlices", Series_NumOfSlices);
-      app->fieldMapping_.emplace(std::string(Series) + "_numOfTimeSlices", Series_NumOfTimeSlices);
-      app->fieldMapping_.emplace(std::string(Series) + "_imageOrientationPatient", Series_ImageOrientationPatient);
-      app->fieldMapping_.emplace(std::string(Series) + "_seriesType", Series_SeriesType);
-      app->fieldMapping_.emplace(std::string(Series) + "_operatorsName", Series_OperatorsName);
-      app->fieldMapping_.emplace(std::string(Series) + "_performedProcedureStepDescription", Series_PerformedProcedureStepDescription);
-      app->fieldMapping_.emplace(std::string(Series) + "_acquisitionDeviceProcessingDescription", Series_AcquisitionDeviceProcessingDescription);
-      app->fieldMapping_.emplace(std::string(Series) + "_contrastBolusAgent", Series_ContrastBolusAgent);
+      app->fieldMapping_["series"] = Series;
+      app->fieldMapping_[std::string(Series) + "_seriesInstanceUID"] = Series_SeriesInstanceUID;
+      app->fieldMapping_[std::string(Series) + "_seriesDate"] = Series_SeriesDate;
+      app->fieldMapping_[std::string(Series) + "_seriesTime"] = Series_SeriesTime;
+      app->fieldMapping_[std::string(Series) + "_modality"] = Series_Modality;
+      app->fieldMapping_[std::string(Series) + "_manufacturer"] = Series_Manufacturer;
+      app->fieldMapping_[std::string(Series) + "_stationName"] = Series_StationName;
+      app->fieldMapping_[std::string(Series) + "_seriesDescription"] = Series_SeriesDescription;
+      app->fieldMapping_[std::string(Series) + "_bodyPartExamined"] = Series_BodyPartExamined;
+      app->fieldMapping_[std::string(Series) + "_sequenceName"] = Series_SequenceName;
+      app->fieldMapping_[std::string(Series) + "_protocolName"] = Series_ProtocolName;
+      app->fieldMapping_[std::string(Series) + "_seriesNumber"] = Series_SeriesNumber;
+      app->fieldMapping_[std::string(Series) + "_cardiacNumberOfImages"] = Series_CardiacNumberOfImages;
+      app->fieldMapping_[std::string(Series) + "_imagesInAcquisition"] = Series_ImagesInAcquisition;
+      app->fieldMapping_[std::string(Series) + "_numberOfTemporalPositions"] = Series_NumberOfTemporalPositions;
+      app->fieldMapping_[std::string(Series) + "_numOfImages"] = Series_NumOfImages;
+      app->fieldMapping_[std::string(Series) + "_numOfSlices"] = Series_NumOfSlices;
+      app->fieldMapping_[std::string(Series) + "_numOfTimeSlices"] = Series_NumOfTimeSlices;
+      app->fieldMapping_[std::string(Series) + "_imageOrientationPatient"] = Series_ImageOrientationPatient;
+      app->fieldMapping_[std::string(Series) + "_seriesType"] = Series_SeriesType;
+      app->fieldMapping_[std::string(Series) + "_operatorsName"] = Series_OperatorsName;
+      app->fieldMapping_[std::string(Series) + "_performedProcedureStepDescription"] = Series_PerformedProcedureStepDescription;
+      app->fieldMapping_[std::string(Series) + "_acquisitionDeviceProcessingDescription"] = Series_AcquisitionDeviceProcessingDescription;
+      app->fieldMapping_[std::string(Series) + "_contrastBolusAgent"] = Series_ContrastBolusAgent;
     }
 
     if (appConfig["FieldMappingOverwrite"].asBool())
@@ -266,17 +266,9 @@ void SaolaConfiguration::ApplyConfiguration(const Json::Value &config)
       app->fieldMapping_.clear();
     }
 
-    for (auto &m : appConfig["FieldMapping"])
+    for (auto &mName : appConfig["FieldMapping"].getMemberNames())
     {
-      std::vector<std::string> keys;
-      boost::split(keys, m.asString(), boost::is_any_of(":"));
-      LOG(INFO) << "Field=" << keys.size();
-      if (keys.size() < 2)
-      {
-        LOG(ERROR) << "[SaolaConfiguration] ERROR Invalid configuration for FieldMapping at: " << m.asString();
-        continue;
-      }
-      app->fieldMapping_.emplace(keys[0], keys[1]);
+      app->fieldMapping_[mName] = appConfig["FieldMapping"][mName];
     }
 
     for (auto &valueMap : appConfig["FieldValues"])

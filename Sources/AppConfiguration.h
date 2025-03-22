@@ -25,7 +25,7 @@ struct AppConfiguration
 
   OrthancPluginHttpMethod method_ = OrthancPluginHttpMethod_Post;
 
-  std::map<std::string, std::string> fieldMapping_;
+  Json::Value fieldMapping_;
 
   Json::Value fieldValues_;
 
@@ -45,11 +45,7 @@ struct AppConfiguration
     json["url_"] = this->url_;
     json["authentication_"] = this->authentication_;
     json["method_"] = this->method_;
-    json["fieldMapping_"] = Json::objectValue;
-    for (const auto &fm : this->fieldMapping_)
-    {
-      json["fieldMapping_"][fm.first] = fm.second;
-    }
+    json["fieldMapping_"] = this->fieldMapping_;
     json["fieldValues_"] = this->fieldValues_;
     json["luaCallback_"] = this->luaCallback_;
   }
