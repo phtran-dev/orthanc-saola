@@ -28,7 +28,7 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/filesystem.hpp>
 
-#include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+#include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 namespace Saola
 {

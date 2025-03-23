@@ -4,8 +4,8 @@
 #include "DTO/StableEventDTOUpdate.h"
 #include "DTO/StableEventDTOGet.h"
 
-#include "TransferJobDTOCreate.h"
-#include "TransferJobDTOGet.h"
+#include "DTO/TransferJobDTOCreate.h"
+#include "DTO/TransferJobDTOGet.h"
 
 #include "FailedJobFilter.h"
 

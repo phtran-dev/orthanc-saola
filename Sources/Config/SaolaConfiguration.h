@@ -34,7 +34,7 @@ private:
 
   std::string dbPath_;
 
-  std::list<std::shared_ptr<AppConfiguration>> apps_;
+  std::map<std::string, std::shared_ptr<AppConfiguration>> apps_;
 
   SaolaConfiguration(/* args */);
 
@@ -44,7 +44,7 @@ public:
 
   const std::shared_ptr<AppConfiguration> GetAppConfigurationById(const std::string& id) const;
 
-  const std::list<std::shared_ptr<AppConfiguration>>& GetApps() const;
+  const std::map<std::string, std::shared_ptr<AppConfiguration>>& GetApps() const;
 
   bool IsEnabled() const;
 
@@ -68,7 +68,7 @@ public:
 
   const std::string& GetInMemJobType() const;
 
-  void ApplyConfiguration(const Json::Value& config);
+  void ApplyConfiguration(const Json::Value& config, bool applyToDB = false);
 
   void ToJson(Json::Value& json);
 

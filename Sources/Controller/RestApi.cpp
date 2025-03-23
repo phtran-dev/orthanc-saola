@@ -6,7 +6,7 @@
 #include "../DTO/StableEventDTOUpdate.h"
 #include "../Scheduler/StableEventScheduler.h"
 
-#include "../ExporterJob.h"
+#include "../Job/ExporterJob.h"
 
 #include "../Cache/InMemoryJobCache.h"
 
@@ -128,16 +128,31 @@ static void ApplyPluginConfiguration(OrthancPluginRestOutput *output,
                                      const OrthancPluginHttpRequest *request)
 {
   OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
-  Json::Value target;
-  Orthanc::Toolbox::ReadJsonWithoutComments(target, request->body, request->bodySize);
-  OrthancPlugins::OrthancConfiguration config(target, SAOLA), saolaSection;
-  if (!config.IsSection(SAOLA))
+  if (request->method != OrthancPluginHttpMethod_Post)
   {
-    return OrthancPluginSendHttpStatusCode(OrthancPlugins::GetGlobalContext(), output, 400);
+    return OrthancPluginSendMethodNotAllowed(context, output, "Post"); 
+  }
+  
+  Json::Value appConfigs;
+  OrthancPlugins::ReadJson(appConfigs, request->body, request->bodySize);
+
+  if (appConfigs.empty() || !appConfigs.isArray())
+  {
+    OrthancPluginSendHttpStatusCode(context, output, 400);
+    return;
   }
 
-  config.GetSection(saolaSection, SAOLA);
-  SaolaConfiguration::Instance().ApplyConfiguration(saolaSection.GetJson());
+  // Validate requestBody
+  for (const auto& appConfig : appConfigs)
+  {
+    if (appConfig.empty() || !appConfig.isObject())
+    {
+      OrthancPluginSendHttpStatusCode(context, output, 400);
+      return;
+    }
+  }
+
+  SaolaConfiguration::Instance().ApplyConfiguration(appConfigs, true);
 
   Json::Value answer;
   SaolaConfiguration::Instance().ToJson(answer);

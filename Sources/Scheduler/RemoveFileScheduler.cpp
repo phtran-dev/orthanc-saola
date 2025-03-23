@@ -182,17 +182,17 @@ void RemoveFileScheduler::Start()
 
   for (const auto &app : SaolaConfiguration::Instance().GetApps())
   {
-    if (app->type_ == EXPORTER_APP_TYPE)
+    if (app.second->type_ == EXPORTER_APP_TYPE)
     {
       // Process Exporter app
-      if (app->fieldValues_.isMember(EXPORTER_DIR))
+      if (app.second->fieldValues_.isMember(EXPORTER_DIR))
       {
         int expiredHours = 24 * 2; // 2 days
-        if (app->fieldValues_.isMember(RETENTION_EXPIRED))
+        if (app.second->fieldValues_.isMember(RETENTION_EXPIRED))
         {
-          expiredHours = app->fieldValues_[RETENTION_EXPIRED].asInt();
+          expiredHours = app.second->fieldValues_[RETENTION_EXPIRED].asInt();
         }
-        std::string dir = app->fieldValues_[EXPORTER_DIR].asString();
+        std::string dir = app.second->fieldValues_[EXPORTER_DIR].asString();
         if (!dir.empty() && dir.length() > 0 && dir[dir.length() - 1] != '/')
         {
           dir += '/';

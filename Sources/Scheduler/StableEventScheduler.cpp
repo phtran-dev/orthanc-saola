@@ -4,7 +4,7 @@
 
 #include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
-#include "../TransferJobDTOCreate.h"
+#include "../DTO/TransferJobDTOCreate.h"
 #include "../DTO/StableEventDTOCreate.h"
 #include "../DTO/StableEventDTOUpdate.h"
 #include "../DTO/MainDicomTags.h"

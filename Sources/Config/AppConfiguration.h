@@ -11,19 +11,21 @@ struct AppConfiguration
 {
   std::string id_;
 
-  bool enable_;
+  bool enable_ = true;
 
-  std::string type_;
+  std::string type_ = "";
 
   unsigned int delay_ = 0;
 
-  int timeOut_ = 60;
+  std::string url_ = "";
 
-  std::string url_;
-
-  std::string authentication_;
+  std::string authentication_ = "";
 
   OrthancPluginHttpMethod method_ = OrthancPluginHttpMethod_Post;
+
+  int timeOut_ = 60;
+
+  bool fieldMappingOverwrite = false;
 
   Json::Value fieldMapping_;
 

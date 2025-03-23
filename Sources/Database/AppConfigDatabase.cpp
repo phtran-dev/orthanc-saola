@@ -217,30 +217,50 @@ namespace Saola
   }
 
   
-  void AppConfigDatabase::SaveAppConfig(Json::Value& serverConfig)
+  void AppConfigDatabase::SaveAppConfig(const Json::Value& appConfig)
   {
     boost::mutex::scoped_lock lock(mutex_);
-    std::string id = Orthanc::Toolbox::GenerateUuid();
-    std::string aet = serverConfig["AET"].asString();
-    int         port = serverConfig["Port"].asInt();
-    std::string labels = joinJsonArray(serverConfig, "Labels", ",");
-    std::string labelsConstraint = serverConfig["LabelsConstraint"].asString();
-    std::string labelsStoreLevels = joinJsonArray(serverConfig, "LabelsStoreLevels", ",");
-    std::string hospitalId = serverConfig["HospitalId"].asString();
-    std::string departmentId = serverConfig["DepartmentId"].asString();
+    std::string id = appConfig["Id"].asString();
+    bool enable = appConfig.isMember("Enable") ? appConfig["Enable"].asBool() : false;
+    std::string type = appConfig.isMember("Type") ? appConfig["Type"].asString() : "";
+    int delay = appConfig.isMember("Delay") ? appConfig["Delay"].asInt() : 0;
+    std::string url = appConfig.isMember("Url") ? appConfig["Url"].asString() : "";
+    std::string authentication = appConfig.isMember("Authentication") ? appConfig["Authentication"].asString() : "";
+    std::string method = appConfig.isMember("Method") ? appConfig["Method"].asString() : "";
+    int timeout = appConfig.isMember("Timeout") ? appConfig["Timeout"].asInt() : 60;
+    bool fieldMappingOverwrite = appConfig.isMember("FieldMappingOverwrite") ? appConfig["FieldMappingOverwrite"].asBool() : false;
+
+    std::string fieldMapping = "";
+    if (appConfig.isMember("FieldMapping"))
+    {
+      Orthanc::Toolbox::WriteFastJson(fieldMapping, appConfig["FieldMapping"]);
+    }
+
+    std::string fieldValues = "";
+    if (appConfig.isMember("FieldValues"))
+    {
+      Orthanc::Toolbox::WriteFastJson(fieldValues, appConfig["FieldValues"]);
+    }
+
+    std::string luaCallback = appConfig.isMember("LuaCallback") ? appConfig["LuaCallback"].asString() : "";
 
     try 
     {
       Json::Value innerSQL = Json::arrayValue;
-      innerSQL.append("INSERT INTO DicomServer (id, aet, port, labels, labelsConstraint, LabelsStoreLevels, hospitalId, departmentId) VALUES(?, ?, ?, ?, ?, ?, ?, ?)");
+      innerSQL.append("INSERT INTO AppConfiguration (Id, Enable, Type, Delay, Url, Authentication, Method, Timeout, FieldMappingOverwrite, FieldMapping, FieldValues, LuaCallback) VALUES(?, ?, ?, ?, ?, ?, ?, ?)");
       innerSQL.append(id);
-      innerSQL.append(aet);
-      innerSQL.append(port);
-      innerSQL.append(labels);
-      innerSQL.append(labelsConstraint);
-      innerSQL.append(labelsStoreLevels);
-      innerSQL.append(hospitalId);
-      innerSQL.append(departmentId);
+      innerSQL.append(enable);
+      innerSQL.append(type);
+      innerSQL.append(delay);
+      innerSQL.append(url);
+      innerSQL.append(authentication);
+      innerSQL.append(method);
+      innerSQL.append(timeout);
+      innerSQL.append(fieldMappingOverwrite);
+      innerSQL.append(fieldMapping);
+      innerSQL.append(fieldValues);
+      innerSQL.append(luaCallback);
+
 
       Json::Value requestBody = Json::arrayValue;
       requestBody.append(innerSQL);
@@ -255,7 +275,6 @@ namespace Saola
       Json::Value answerBody;
       OrthancPlugins::HttpClient::HttpHeaders answerHeaders;
       client_.Execute(answerHeaders, answerBody);
-      serverConfig["id"] = id;    
     }
     catch (Orthanc::OrthancException& e)
     {

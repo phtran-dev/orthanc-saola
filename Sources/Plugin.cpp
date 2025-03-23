@@ -24,8 +24,8 @@
 #include "Config/SaolaConfiguration.h"
 #include "Constants.h"
 #include "Controller/RestApi.h"
-#include "JobHandler.h"
-#include "ExporterJob.h"
+#include "Job/JobHandler.h"
+#include "Job/ExporterJob.h"
 #include "Cache/InMemoryJobCache.h"
 
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
@@ -111,14 +111,6 @@ extern "C"
     try
     {
       OrthancPlugins::OrthancConfiguration configuration;
-      // std::string folder = configuration.GetStringValue(STORAGE_DIRECTORY, ORTHANC_STORAGE);
-
-      // Orthanc::SystemToolbox::MakeDirectory(folder);
-      // std::string path = (boost::filesystem::path(folder) / "saola-plugin.db").string();
-
-      // LOG(WARNING) << "Path to the database of the Saola plugin: " << path;
-      // SaolaDatabase::Instance().Open(path);
-
       LOG(WARNING) << "Path to the database of the Saola plugin: " << SaolaConfiguration::Instance().GetDbPath();
       boost::filesystem::path dbPath = SaolaConfiguration::Instance().GetDbPath();
       Orthanc::SystemToolbox::MakeDirectory(dbPath.parent_path().string());

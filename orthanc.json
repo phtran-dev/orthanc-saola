@@ -100,6 +100,7 @@
     "ExpirationDuration": 1,
     "Root": "/saola/",
     "MaxRetry": 1,
+    "DataSource.Url" : "http://localhost:4001",
     "Apps" : [
       {
         "Id": "Ris1",

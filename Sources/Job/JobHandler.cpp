@@ -1,13 +1,13 @@
 #include "JobHandler.h"
 
-#include "Config/SaolaConfiguration.h"
-#include "SaolaDatabase.h"
+#include "../Config/SaolaConfiguration.h"
+#include "../SaolaDatabase.h"
 
-#include "DTO/StableEventDTOUpdate.h"
+#include "../DTO/StableEventDTOUpdate.h"
 
-#include "Cache/InMemoryJobCache.h"
+#include "../Cache/InMemoryJobCache.h"
 
-#include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+#include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 #include <Logging.h>
 

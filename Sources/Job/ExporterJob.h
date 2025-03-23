@@ -10,7 +10,7 @@
 #include <Compression/ZipWriter.h>
 #include <TemporaryFile.h>
 
-#include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+#include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 namespace Saola
 {

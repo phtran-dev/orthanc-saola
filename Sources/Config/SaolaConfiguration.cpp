@@ -39,16 +39,18 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->inMemJobCacheLimit_ = saola.GetIntegerValue("InMemJobCacheLimit", 100);
   this->inMemJobType_ = saola.GetStringValue("InMemJobCacheType", "DicomModalityStore");
 
-  // if (saola.GetJson().isMember("Apps"))
-  // {
-  //   this->ApplyConfiguration(saola.GetJson()["Apps"]);
-  // }
 
-  Saola::AppConfigDatabase::Instance().Open("http://localhost:4001");
-  Json::Value apps;
-  Saola::AppConfigDatabase::Instance().GetAppConfigs(apps);
-
-  this->ApplyConfiguration(apps);
+  if (!saola.GetStringValue("DataSource.Url", "").empty())
+  {
+    Saola::AppConfigDatabase::Instance().Open(saola.GetStringValue("DataSource.Url", ""));
+    Json::Value apps;
+    Saola::AppConfigDatabase::Instance().GetAppConfigs(apps);
+    this->ApplyConfiguration(apps);
+  }
+  else if (saola.GetJson().isMember("Apps"))
+  {
+    this->ApplyConfiguration(saola.GetJson()["Apps"]);
+  }
 }
 
 SaolaConfiguration &SaolaConfiguration::Instance()
@@ -60,17 +62,16 @@ SaolaConfiguration &SaolaConfiguration::Instance()
 
 const std::shared_ptr<AppConfiguration> SaolaConfiguration::GetAppConfigurationById(const std::string &id) const
 {
-  for (auto &app : this->apps_)
+  const auto appIt = this->apps_.find(id);
+  if (appIt != this->apps_.end())
   {
-    if (app->id_ == id && app->enable_)
-    {
-      return app;
-    }
+    return appIt->second;
   }
+
   return std::shared_ptr<AppConfiguration>();
 }
 
-const std::list<std::shared_ptr<AppConfiguration>> &SaolaConfiguration::GetApps() const
+const std::map<std::string, std::shared_ptr<AppConfiguration>> &SaolaConfiguration::GetApps() const
 {
   return this->apps_;
 }
@@ -130,7 +131,7 @@ const std::string &SaolaConfiguration::GetInMemJobType() const
   return this->inMemJobType_;
 }
 
-void SaolaConfiguration::ApplyConfiguration(const Json::Value &appConfigs)
+void SaolaConfiguration::ApplyConfiguration(const Json::Value &appConfigs, bool applyToDB)
 {
   std::list<std::shared_ptr<AppConfiguration>> apps;
   for (const auto &appConfig : appConfigs)
@@ -143,6 +144,11 @@ void SaolaConfiguration::ApplyConfiguration(const Json::Value &appConfigs)
     }
 
     if (!appConfig["Enable"].asBool())
+    {
+      continue;
+    }
+
+    if (this->apps_.find(appConfig["Id"].asString()) != this->apps_.end())
     {
       continue;
     }
@@ -276,15 +282,11 @@ void SaolaConfiguration::ApplyConfiguration(const Json::Value &appConfigs)
       }
     }
 
-    apps.push_back(app);
-  }
-
-  if (!apps.empty())
-  {
-    this->apps_.clear();
-    for (const auto &app : apps)
+    this->apps_.emplace(app->id_, app);
+    if (applyToDB)
     {
-      this->apps_.push_back(app);
+      // Save to DB
+      Saola::AppConfigDatabase::Instance().SaveAppConfig(appConfig);
     }
   }
 }
@@ -299,7 +301,7 @@ void SaolaConfiguration::ToJson(Json::Value &json)
   for (const auto &app : this->apps_)
   {
     Json::Value appJson;
-    app->ToJson(appJson);
+    app.second->ToJson(appJson);
     json["apps_"].append(appJson);
   }
 }

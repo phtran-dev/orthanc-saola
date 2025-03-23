@@ -27,6 +27,6 @@ namespace Saola
     void GetAppConfigs(Json::Value& appConfigs);
     void GetAppConfigById(Json::Value& appConfig, const std::string& id);
     bool DeleteAppConfigById(const std::string& id);
-    void SaveAppConfig(Json::Value& appConfig);
+    void SaveAppConfig(const Json::Value& appConfig);
   };
 }
