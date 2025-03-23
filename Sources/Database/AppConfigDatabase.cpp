@@ -168,12 +168,12 @@ namespace Saola
     
   }
 
-  void AppConfigDatabase::GetAppConfigById(Json::Value& serverConfig, const std::string& id)
+  void AppConfigDatabase::GetAppConfigById(Json::Value& appConfig, const std::string& id)
   {
     try 
     {
       Json::Value sql = Json::arrayValue;
-      sql.append("SELECT id, aet, port, labels, labelsConstraint, labelsStoreLevels, hospitalId, departmentId FROM DicomServer WHERE id=?");
+      sql.append("SELECT Id, Enable, Type, Delay, Url, Authentication, Method, Timeout, FieldMappingOverwrite, FieldMapping, FieldValues, LuaCallback FROM AppConfiguration WHERE id=?");
       sql.append(id);
 
       Json::Value bodyRequest = Json::arrayValue;
@@ -194,17 +194,34 @@ namespace Saola
           {
             for (const auto& value : answerBody["results"][0]["values"])
             {
-              Json::Value config;
-              serverConfig["id"] = value[0];
-              serverConfig["AET"] = value[1];
-              serverConfig["Port"] = value[2];
-              serverConfig["Labels"] = Json::arrayValue;
-              toJsonArray(serverConfig["Labels"], value[3].asString(), ",");
-              serverConfig["LabelsConstraint"] = value[4];
-              serverConfig["LabelsStoreLevels"] = Json::arrayValue;
-              toJsonArray(serverConfig["LabelsStoreLevels"], value[5].asString(), ",");
-              serverConfig["HospitalId"] = value[6];
-              serverConfig["DepartmentId"] = value[7];
+              appConfig["Id"] = value[0];
+              if (!value[1].isNull())
+              {
+                appConfig["Enable"] = value[1].asString() == "true";
+              }
+              else
+              {
+                appConfig["Enable"] = false;
+              }
+              appConfig["Type"] = value[2];
+              appConfig["Delay"] = value[3];
+              appConfig["Url"] = value[4];
+              appConfig["Authentication"] = value[5];
+              appConfig["Method"] = value[6];
+              appConfig["Timeout"] = value[7];
+              if (!value[8].isNull())
+              {
+                appConfig["FieldMappingOverwrite"] = value[8].asString() == "true";
+              }
+              else
+              {
+                appConfig["FieldMappingOverwrite"] = false;
+              }
+
+              Orthanc::Toolbox::ReadJson(appConfig["FieldMapping"], value[9].asString());
+              Orthanc::Toolbox::ReadJson(appConfig["FieldValues"], value[10].asString());
+              
+              appConfig["LuaCallback"] = value[11];
             }
           }
         }
@@ -212,7 +229,7 @@ namespace Saola
     }
     catch (Orthanc::OrthancException& e)
     {
-      LOG(ERROR) << "[ConfigDatabase::GetDicomServerConfigById] Cannot get id="<< id << " from DicomServer err=" << e.What(); 
+      LOG(ERROR) << "[AppConfigDatabase::GetAppConfigById] Cannot get id="<< id << " from AppConfiguration err=" << e.What(); 
     }
   }
 
@@ -289,7 +306,7 @@ namespace Saola
     try 
     {
       Json::Value sql = Json::arrayValue;
-      sql.append("DELETE FROM DicomServer WHERE id=?");
+      sql.append("DELETE FROM AppConfiguration WHERE id=?");
       sql.append(id);
 
       Json::Value bodyRequest = Json::arrayValue;
@@ -315,7 +332,7 @@ namespace Saola
     }
     catch (Orthanc::OrthancException& e)
     {
-      LOG(ERROR) << "[AppConfigDatabase::DeleteAppConfigById] Cannot get id="<< id << " from DicomServer err=" << e.What(); 
+      LOG(ERROR) << "[AppConfigDatabase::DeleteAppConfigById] Cannot get id="<< id << " from AppConfiguration err=" << e.What(); 
     }
     
     return false;
