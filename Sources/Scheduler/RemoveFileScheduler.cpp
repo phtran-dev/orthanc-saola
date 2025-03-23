@@ -1,9 +1,9 @@
 #include "RemoveFileScheduler.h"
-#include "SaolaDatabase.h"
-#include "TimeUtil.h"
-#include "SaolaConfiguration.h"
+#include "../SaolaDatabase.h"
+#include "../TimeUtil.h"
+#include "../Config/SaolaConfiguration.h"
 
-#include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+#include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 #include <Logging.h>
 #include <Enumerations.h>

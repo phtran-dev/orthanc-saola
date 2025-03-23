@@ -17,16 +17,16 @@
  **/
 
 #include "SaolaDatabase.h"
-#include "StableEventScheduler.h"
-#include "RemoveFileScheduler.h"
-#include "StableEventDTOCreate.h"
-#include "MainDicomTags.h"
-#include "SaolaConfiguration.h"
+#include "Scheduler/StableEventScheduler.h"
+#include "Scheduler/RemoveFileScheduler.h"
+#include "DTO/StableEventDTOCreate.h"
+#include "DTO/MainDicomTags.h"
+#include "Config/SaolaConfiguration.h"
 #include "Constants.h"
-#include "RestApi.h"
+#include "Controller/RestApi.h"
 #include "JobHandler.h"
 #include "ExporterJob.h"
-#include "InMemoryJobCache.h"
+#include "Cache/InMemoryJobCache.h"
 
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 

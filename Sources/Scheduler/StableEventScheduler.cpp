@@ -1,17 +1,17 @@
 #include "StableEventScheduler.h"
-#include "SaolaDatabase.h"
-#include "TimeUtil.h"
+#include "../SaolaDatabase.h"
+#include "../TimeUtil.h"
 
-#include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+#include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
-#include "TransferJobDTOCreate.h"
-#include "StableEventDTOCreate.h"
-#include "StableEventDTOUpdate.h"
-#include "MainDicomTags.h"
-#include "SaolaConfiguration.h"
-#include "Constants.h"
+#include "../TransferJobDTOCreate.h"
+#include "../DTO/StableEventDTOCreate.h"
+#include "../DTO/StableEventDTOUpdate.h"
+#include "../DTO/MainDicomTags.h"
+#include "../Config/SaolaConfiguration.h"
+#include "../Constants.h"
 
-#include "Notification.h"
+#include "../Notification/Notification.h"
 
 #include <Logging.h>
 #include <Enumerations.h>

@@ -1,8 +1,8 @@
 #include "SaolaConfiguration.h"
-#include "Constants.h"
-#include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+#include "../Constants.h"
+#include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
-#include "Database/AppConfigDatabase.h"
+#include "../Database/AppConfigDatabase.h"
 
 #include <EmbeddedResources.h>
 

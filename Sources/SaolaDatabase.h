@@ -1,8 +1,8 @@
 #pragma once
 
-#include "StableEventDTOCreate.h"
-#include "StableEventDTOUpdate.h"
-#include "StableEventDTOGet.h"
+#include "DTO/StableEventDTOCreate.h"
+#include "DTO/StableEventDTOUpdate.h"
+#include "DTO/StableEventDTOGet.h"
 
 #include "TransferJobDTOCreate.h"
 #include "TransferJobDTOGet.h"

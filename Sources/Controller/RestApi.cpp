@@ -1,14 +1,14 @@
 #include "RestApi.h"
-#include "Constants.h"
-#include "SaolaConfiguration.h"
-#include "SaolaDatabase.h"
+#include "../Constants.h"
+#include "../Config/SaolaConfiguration.h"
+#include "../SaolaDatabase.h"
 
-#include "StableEventDTOUpdate.h"
-#include "StableEventScheduler.h"
+#include "../DTO/StableEventDTOUpdate.h"
+#include "../Scheduler/StableEventScheduler.h"
 
-#include "ExporterJob.h"
+#include "../ExporterJob.h"
 
-#include "InMemoryJobCache.h"
+#include "../Cache/InMemoryJobCache.h"
 
 #include <Toolbox.h>
 #include <Logging.h>
@@ -18,7 +18,7 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/shared_ptr.hpp>
 
-#include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+#include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 static const char *const SAOLA = "Saola";
 

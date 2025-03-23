@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+#include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 struct StableEventDTOUpdate
 {
