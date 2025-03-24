@@ -1,11 +1,10 @@
-  #include "AppConfigDatabase.h"
+#include "AppConfigDatabase.h"
 
-  #include <EmbeddedResources.h>
+#include <EmbeddedResources.h>
+#include <Toolbox.h>
+#include <Logging.h>
 
-  #include <Toolbox.h>
-  #include <Logging.h>
-
-  #include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string.hpp>
 
 namespace Saola
 {
@@ -163,9 +162,8 @@ namespace Saola
     }
     catch (Orthanc::OrthancException& e)
     {
-      LOG(ERROR) << "Cannot get DicomServer " << e.What(); 
+      LOG(ERROR) << "[AppConfigDatabase::GetAppConfigs] ERROR Cannot get AppConfiguration err=" << e.What(); 
     }
-    
   }
 
   void AppConfigDatabase::GetAppConfigById(Json::Value& appConfig, const std::string& id)
@@ -229,7 +227,7 @@ namespace Saola
     }
     catch (Orthanc::OrthancException& e)
     {
-      LOG(ERROR) << "[AppConfigDatabase::GetAppConfigById] Cannot get id="<< id << " from AppConfiguration err=" << e.What(); 
+      LOG(ERROR) << "[AppConfigDatabase::GetAppConfigById] ERROR Cannot get id="<< id << " from AppConfiguration err=" << e.What(); 
     }
   }
 
@@ -243,7 +241,7 @@ namespace Saola
     int delay = appConfig.isMember("Delay") ? appConfig["Delay"].asInt() : 0;
     std::string url = appConfig.isMember("Url") ? appConfig["Url"].asString() : "";
     std::string authentication = appConfig.isMember("Authentication") ? appConfig["Authentication"].asString() : "";
-    std::string method = appConfig.isMember("Method") ? appConfig["Method"].asString() : "";
+    std::string method = appConfig.isMember("Method") ? appConfig["Method"].asString() : "POST";
     int timeout = appConfig.isMember("Timeout") ? appConfig["Timeout"].asInt() : 60;
     bool fieldMappingOverwrite = appConfig.isMember("FieldMappingOverwrite") ? appConfig["FieldMappingOverwrite"].asBool() : false;
 
@@ -264,7 +262,7 @@ namespace Saola
     try 
     {
       Json::Value innerSQL = Json::arrayValue;
-      innerSQL.append("INSERT INTO AppConfiguration (Id, Enable, Type, Delay, Url, Authentication, Method, Timeout, FieldMappingOverwrite, FieldMapping, FieldValues, LuaCallback) VALUES(?, ?, ?, ?, ?, ?, ?, ?)");
+      innerSQL.append("INSERT INTO AppConfiguration (Id, Enable, Type, Delay, Url, Authentication, Method, Timeout, FieldMappingOverwrite, FieldMapping, FieldValues, LuaCallback) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
       innerSQL.append(id);
       innerSQL.append(enable);
       innerSQL.append(type);
@@ -277,7 +275,6 @@ namespace Saola
       innerSQL.append(fieldMapping);
       innerSQL.append(fieldValues);
       innerSQL.append(luaCallback);
-
 
       Json::Value requestBody = Json::arrayValue;
       requestBody.append(innerSQL);
@@ -295,7 +292,7 @@ namespace Saola
     }
     catch (Orthanc::OrthancException& e)
     {
-      LOG(ERROR) << "[ConfigDatabase::SaveDicomServer] Cannot get DicomServer err=" << e.What(); 
+      LOG(ERROR) << "[ConfigDatabase::SaveDicomServer] ERROR Cannot get DicomServer err=" << e.What(); 
     }
   }
 
@@ -332,7 +329,7 @@ namespace Saola
     }
     catch (Orthanc::OrthancException& e)
     {
-      LOG(ERROR) << "[AppConfigDatabase::DeleteAppConfigById] Cannot get id="<< id << " from AppConfiguration err=" << e.What(); 
+      LOG(ERROR) << "[AppConfigDatabase::DeleteAppConfigById] ERROR Cannot get id="<< id << " from AppConfiguration err=" << e.What(); 
     }
     
     return false;

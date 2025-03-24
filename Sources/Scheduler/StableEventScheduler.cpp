@@ -246,32 +246,6 @@ static void ConstructAndSendMessage(const AppConfiguration &appConfig, const Jso
   }
 
 
-  // for (auto &field : appConfig.fieldMapping_.)
-  // {
-
-  //   // Process field "Series"
-  //   if (field.first == "series" && mainDicomTags.isMember(field.second))
-  //   {
-  //     std::map<std::string, std::string> newMappings;
-  //     // Filter fields which start with "Series_"
-  //     FilterFieldMappingLevel(seriesPrefix, appConfig.fieldMapping_, newMappings);
-
-  //     body[field.first] = Json::arrayValue;
-  //     for (auto& series : mainDicomTags[field.second])
-  //     {
-  //       Json::Value val;
-  //       ConstructSeries(newMappings, seriesPrefix, series, val);
-  //       body[field.first].append(val);
-  //     }
-  //     continue;
-  //   }
-  //   // Process fields not starting with "Series_"
-  //   if (field.first.find(seriesPrefix) == std::string::npos && mainDicomTags.isMember(field.second))
-  //   {
-  //     body[field.first] = mainDicomTags[field.second];
-  //   }
-  // }
-
   for (const auto &member : appConfig.fieldValues_.getMemberNames())
   {
     body[member] = appConfig.fieldValues_[member];
@@ -279,7 +253,7 @@ static void ConstructAndSendMessage(const AppConfiguration &appConfig, const Jso
 
   std::string bodyString;
   OrthancPlugins::WriteFastJson(bodyString, body);
-  LOG(INFO) << "[ConstructAndSendMessage] Body = " << body.toStyledString();
+  LOG(INFO) << "[ConstructAndSendMessage] Body = " << bodyString;
   OrthancPlugins::HttpClient client;
   client.SetUrl(appConfig.url_);
   client.SetTimeout(appConfig.timeOut_);

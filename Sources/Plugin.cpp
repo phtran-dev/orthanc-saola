@@ -19,6 +19,7 @@
 #include "SaolaDatabase.h"
 #include "Scheduler/StableEventScheduler.h"
 #include "Scheduler/RemoveFileScheduler.h"
+#include "Scheduler/PollingDBScheduler.h"
 #include "DTO/StableEventDTOCreate.h"
 #include "DTO/MainDicomTags.h"
 #include "Config/SaolaConfiguration.h"
@@ -52,6 +53,8 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
     {
       RemoveFileScheduler::Instance().Start();
     }
+
+    
 
     break;
   }

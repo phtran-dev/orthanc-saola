@@ -146,6 +146,7 @@ add_library(OrthancSaola SHARED
   Sources/Cache/InMemoryJobCache.cpp
   Sources/Scheduler/RemoveFileScheduler.cpp
   Sources/Scheduler/StableEventScheduler.cpp
+  Sources/Scheduler/PollingDBScheduler.cpp
   Sources/Notification/Notification.cpp
   Sources/Controller/RestApi.cpp
   Sources/Job/ExporterJob.cpp

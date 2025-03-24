@@ -147,8 +147,57 @@ static void ApplyPluginConfiguration(OrthancPluginRestOutput *output,
   {
     if (appConfig.empty() || !appConfig.isObject())
     {
+      LOG(ERROR) << "[ApplyPluginConfiguration] ERROR Invalid request, appConfig is empty or not Object type";
       OrthancPluginSendHttpStatusCode(context, output, 400);
       return;
+    }
+
+    /*
+    ** Validate FieldValues and FieldMapping
+    ** Example of Configuration
+      {
+        "Id": "Ris1",
+        "Enable": true,
+        "FieldMappingOverwrite": false,
+        "Type": "Ris",
+        "Delay": 60, // Delay in seconds
+        "Url": "http://storeserver:9001/secured/ws/rest/v1/async/location",
+        "Authentication": "Basic b3J0aGFuYzpvcnRoYW5j",
+        "FieldMapping": [{"aeTitle": "RemoteAET"}, {"ipAddress" : "RemoteIP"}]
+      },
+      {
+        "Id": "Transfer1",
+        "Enable": true,
+        "FieldMappingOverwrite": true,
+        "Type": "Transfer",
+        "Delay": 200, // Delay in seconds
+        "Url": "/transfers/send",
+        "Method": "POST",
+        "FieldValues": [{"Peer": "LongTermPeer"}, {"Compression": "none"}]
+      }
+
+    */
+    for (auto key : {"FieldValues", "FieldMapping"})
+    {
+      if (appConfig.isMember(key))
+      {
+        if (appConfig[key].isNull() || appConfig[key].empty() || !appConfig[key].isArray())
+        {
+          LOG(ERROR) << "[ApplyPluginConfiguration] ERROR Invalid request, appConfig[\"" + std::string(key) + "\"] is null or empty or not Array type";
+          OrthancPluginSendHttpStatusCode(context, output, 400);
+          return;
+        }
+  
+        for (const auto& value : appConfig[key])
+        {
+          if (!value.isObject() || value.size() != 1)
+          {
+            LOG(ERROR) << "[ApplyPluginConfiguration] ERROR Invalid request, values in appConfig[\"" + std::string(key) + "\"] is not (Key, Value) type: " << value.toStyledString();
+            OrthancPluginSendHttpStatusCode(context, output, 400);
+            return;
+          }
+        }
+      }
     }
   }
 
@@ -381,7 +430,6 @@ void HandleStableEvents(OrthancPluginRestOutput *output,
                         const char *url,
                         const OrthancPluginHttpRequest *request)
 {
-
   if (request->method == OrthancPluginHttpMethod_Get)
   {
     GetStableEvents(output, url, request);

@@ -46,6 +46,8 @@ public:
 
   const std::map<std::string, std::shared_ptr<AppConfiguration>>& GetApps() const;
 
+  void RemoveApp(const std::string& appId);
+
   bool IsEnabled() const;
 
   bool IsEnableRemoveFile() const;

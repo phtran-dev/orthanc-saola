@@ -76,6 +76,15 @@ const std::map<std::string, std::shared_ptr<AppConfiguration>> &SaolaConfigurati
   return this->apps_;
 }
 
+void SaolaConfiguration::RemoveApp(const std::string& appId)
+{
+  auto it = this->apps_.find(appId);
+  if (it != this->apps_.end())
+  {
+    this->apps_.erase(it);
+  }
+}
+
 int SaolaConfiguration::GetMaxRetry() const
 {
   return this->maxRetry_;
