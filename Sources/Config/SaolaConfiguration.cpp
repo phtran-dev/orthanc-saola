@@ -299,6 +299,94 @@ void SaolaConfiguration::ApplyConfiguration(const Json::Value &appConfigs, bool 
   }
 }
 
+void SaolaConfiguration::UpdateConfiguration(const Json::Value &appConfig)
+{
+  auto appIT = this->apps_.find(appConfig["Id"].asString());
+  if (appIT == this->apps_.end())
+  {
+    return;
+  }
+
+  if (appConfig.isMember("Enable"))
+  {
+    appIT->second->enable_ = appConfig["Enable"].asBool();
+  }
+
+  if (appConfig.isMember("Authentication"))
+  {
+    appIT->second->authentication_ = appConfig["Authentication"].asString();
+  }
+
+  if (appConfig.isMember("Method"))
+  {
+    std::string methodName = appConfig["Method"].asString();
+    Orthanc::Toolbox::ToUpperCase(methodName);
+    if (methodName == "POST")
+    {
+      appIT->second->method_ = OrthancPluginHttpMethod_Post;
+    }
+    else if (methodName == "GET")
+    {
+      appIT->second->method_ = OrthancPluginHttpMethod_Get;
+    }
+    else if (methodName == "PUT")
+    {
+      appIT->second->method_ = OrthancPluginHttpMethod_Put;
+    }
+    else if (methodName == "DELETE")
+    {
+      appIT->second->method_ = OrthancPluginHttpMethod_Delete;
+    }
+  }
+
+  if (appConfig.isMember("LuaCallback"))
+  {
+    appIT->second->luaCallback_ = appConfig["LuaCallback"].asString();
+  }
+
+  if (appConfig.isMember("Type"))
+  {
+    appIT->second->type_ = appConfig["Type"].asString();
+  }
+
+  if (appConfig.isMember("Url"))
+  {
+    appIT->second->url_ = appConfig["Url"].asString();
+  }
+
+  if (appConfig.isMember("Delay"))
+  {
+    appIT->second->delay_ = appConfig["Delay"].asInt();
+  }
+  
+  if (appConfig.isMember("Timeout"))
+  {
+    appIT->second->timeOut_ = appConfig["Timeout"].asInt();
+  }
+
+  if (appConfig["FieldMappingOverwrite"].asBool())
+  {
+    appIT->second->fieldMapping_.clear();
+  }
+
+  for (auto &valueMap : appConfig["FieldMapping"])
+  {
+    for (Json::ValueConstIterator it = valueMap.begin(); it != valueMap.end(); ++it)
+    {
+      appIT->second->fieldMapping_[it.key().asString()] = *it;
+    }
+  }
+
+  for (auto &valueMap : appConfig["FieldValues"])
+  {
+    for (const auto &memberName : valueMap.getMemberNames())
+    {
+      appIT->second->fieldValues_[memberName] = valueMap[memberName.c_str()];
+    }
+  }
+
+}
+
 void SaolaConfiguration::ToJson(Json::Value &json)
 {
   json["enable_"] = this->enable_;

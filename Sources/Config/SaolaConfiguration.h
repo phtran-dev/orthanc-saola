@@ -72,6 +72,8 @@ public:
 
   void ApplyConfiguration(const Json::Value& config, bool applyToDB = false);
 
+  void UpdateConfiguration(const Json::Value& config);
+
   void ToJson(Json::Value& json);
 
 };

@@ -76,6 +76,7 @@ namespace Saola
   void AppConfigDatabase::Open(const std::string& url)
   {
     boost::mutex::scoped_lock lock(mutex_);
+    this->enabled_ = true;
     this->url_ = url;
     Initialize();
   }
@@ -154,10 +155,17 @@ namespace Saola
               {
                 config["FieldMappingOverwrite"] = false;
               }
-
-              Orthanc::Toolbox::ReadJson(config["FieldMapping"], value[9].asString());
-              Orthanc::Toolbox::ReadJson(config["FieldValues"], value[10].asString());
               
+              if (!value[9].isNull() && !value[9].empty() && !value[9].asString().empty())
+              {
+                Orthanc::Toolbox::ReadJson(config["FieldMapping"], value[9].asString());
+              }
+
+              if (!value[10].isNull() && !value[10].empty() && !value[10].asString().empty())
+              {
+                Orthanc::Toolbox::ReadJson(config["FieldValues"], value[10].asString());
+              }
+
               config["LuaCallback"] = value[11];
               appConfigs.append(config);
             }

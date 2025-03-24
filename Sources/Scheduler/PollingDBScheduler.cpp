@@ -52,6 +52,10 @@ void PollingDBScheduler::MonitorDatabase()
       {
         newAppConfigs.append(appConfig.second);
       }
+      else
+      {
+        SaolaConfiguration::Instance().UpdateConfiguration(appConfig.second);
+      }
     }
 
     if (!newAppConfigs.empty())
