@@ -73,8 +73,7 @@ void PollingDBScheduler::MonitorDatabase()
       }
     }
 
-    unsigned int intervalSeconds = 20;
-    for (unsigned int i = 0; i < intervalSeconds * 10; i++)
+    for (unsigned int i = 0; i < SaolaConfiguration::Instance().GetpollingDBIntervalInSeconds() * 10; i++)
     {
       if (this->m_state != State_Running)
       {

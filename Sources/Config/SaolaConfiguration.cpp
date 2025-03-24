@@ -38,6 +38,7 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->enableInMemJobCache_ = saola.GetBooleanValue("EnableInMemJobCache", false);
   this->inMemJobCacheLimit_ = saola.GetIntegerValue("InMemJobCacheLimit", 100);
   this->inMemJobType_ = saola.GetStringValue("InMemJobCacheType", "DicomModalityStore");
+  this->pollingDBIntervalInSeconds_ = saola.GetIntegerValue("PollingDBInSeconds", 30);
 
   if (!saola.GetStringValue("DataSource.Url", "").empty())
   {
@@ -385,6 +386,11 @@ void SaolaConfiguration::UpdateConfiguration(const Json::Value &appConfig)
     }
   }
 
+}
+
+int SaolaConfiguration::GetpollingDBIntervalInSeconds() const
+{
+  return this->pollingDBIntervalInSeconds_;
 }
 
 void SaolaConfiguration::ToJson(Json::Value &json)

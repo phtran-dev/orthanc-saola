@@ -34,6 +34,8 @@ private:
 
   std::string dbPath_;
 
+  int pollingDBIntervalInSeconds_ = 30; // 30 seconds
+
   std::map<std::string, std::shared_ptr<AppConfiguration>> apps_;
 
   SaolaConfiguration(/* args */);
@@ -73,6 +75,8 @@ public:
   void ApplyConfiguration(const Json::Value& config, bool applyToDB = false);
 
   void UpdateConfiguration(const Json::Value& config);
+
+  int GetpollingDBIntervalInSeconds() const;
 
   void ToJson(Json::Value& json);
 
