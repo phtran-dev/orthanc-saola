@@ -54,13 +54,14 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
       RemoveFileScheduler::Instance().Start();
     }
 
-    
+    PollingDBScheduler::Instance().Start();
 
     break;
   }
 
   case OrthancPluginChangeType_OrthancStopped:
     StableEventScheduler::Instance().Stop();
+    PollingDBScheduler::Instance().Stop();
     if (SaolaConfiguration::Instance().IsEnableRemoveFile())
     {
       RemoveFileScheduler::Instance().Stop();

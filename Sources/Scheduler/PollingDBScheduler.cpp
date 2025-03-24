@@ -84,6 +84,10 @@ void PollingDBScheduler::MonitorDatabase()
 
 void PollingDBScheduler::Start()
 {
+  if (!Saola::AppConfigDatabase::Instance().IsEnabled())
+  {
+    return;
+  }
   if (this->m_state != State_Setup)
   {
     throw Orthanc::OrthancException(Orthanc::ErrorCode_BadSequenceOfCalls);

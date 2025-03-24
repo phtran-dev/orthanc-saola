@@ -19,6 +19,7 @@ namespace Saola
     boost::mutex                 mutex_;
     OrthancPlugins::HttpClient   client_;
     std::string                  url_;
+    bool                         enabled_;
     void Initialize();
 
   public:
@@ -28,5 +29,6 @@ namespace Saola
     void GetAppConfigById(Json::Value& appConfig, const std::string& id);
     bool DeleteAppConfigById(const std::string& id);
     void SaveAppConfig(const Json::Value& appConfig);
+    bool IsEnabled() const;
   };
 }

@@ -14,6 +14,11 @@ namespace Saola
     return db;
   }
 
+  bool AppConfigDatabase::IsEnabled() const
+  {
+    return this->enabled_;
+  }
+
   void AppConfigDatabase::Initialize()
   {
     bool existing = false;

@@ -39,7 +39,6 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->inMemJobCacheLimit_ = saola.GetIntegerValue("InMemJobCacheLimit", 100);
   this->inMemJobType_ = saola.GetStringValue("InMemJobCacheType", "DicomModalityStore");
 
-
   if (!saola.GetStringValue("DataSource.Url", "").empty())
   {
     Saola::AppConfigDatabase::Instance().Open(saola.GetStringValue("DataSource.Url", ""));
