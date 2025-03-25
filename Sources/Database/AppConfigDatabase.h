@@ -19,12 +19,13 @@ namespace Saola
     boost::mutex                 mutex_;
     OrthancPlugins::HttpClient   client_;
     std::string                  url_;
+    int                          timeout_ = 1;
     bool                         enabled_;
     void Initialize();
 
   public:
     static AppConfigDatabase& Instance();
-    void Open(const std::string& url);
+    void Open(const std::string& url, int timeout);
     void GetAppConfigs(Json::Value& appConfigs);
     void GetAppConfigById(Json::Value& appConfig, const std::string& id);
     bool DeleteAppConfigById(const std::string& id);

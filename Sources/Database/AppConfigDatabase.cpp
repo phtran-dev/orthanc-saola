@@ -73,11 +73,12 @@ namespace Saola
   }
 
 
-  void AppConfigDatabase::Open(const std::string& url)
+  void AppConfigDatabase::Open(const std::string& url, int timeout)
   {
     boost::mutex::scoped_lock lock(mutex_);
     this->enabled_ = true;
     this->url_ = url;
+    this->timeout_ = timeout;
     Initialize();
   }
     
@@ -119,6 +120,7 @@ namespace Saola
       Orthanc::Toolbox::UriEncode(encoded_sql, sql);
       client_.SetUrl(this->url_ + "/db/query?q=" + encoded_sql);
       client_.SetMethod(OrthancPluginHttpMethod_Get);
+      client_.SetTimeout(this->timeout_);
       Json::Value answerBody;
       OrthancPlugins::HttpClient::HttpHeaders answerHeaders;
       client_.Execute(answerHeaders, answerBody);
@@ -196,6 +198,7 @@ namespace Saola
       Json::Value answerBody;
       OrthancPlugins::HttpClient::HttpHeaders answerHeaders;
       client_.Execute(answerHeaders, answerBody);
+      client_.SetTimeout(this->timeout_);
       if (answerBody.isMember("results"))
       {
         auto& results = answerBody["results"];
@@ -294,6 +297,7 @@ namespace Saola
 
       client_.SetUrl(this->url_ + "/db/execute");
       client_.SetMethod(OrthancPluginHttpMethod_Post);
+      client_.SetTimeout(this->timeout_);
 
       client_.AddHeader("Content-Type", "application/json");
       client_.SetBody(requestBody.toStyledString());
@@ -324,6 +328,7 @@ namespace Saola
 
       client_.SetUrl(this->url_ + "/db/execute");
       client_.SetMethod(OrthancPluginHttpMethod_Post);
+      client_.SetTimeout(this->timeout_);
       client_.SetBody(bodyRequest.toStyledString());
       Json::Value answerBody;
       OrthancPlugins::HttpClient::HttpHeaders answerHeaders;

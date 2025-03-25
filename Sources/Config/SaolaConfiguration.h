@@ -1,12 +1,10 @@
 #pragma once
 
-
 #include "AppConfiguration.h"
 
 #include <list>
 #include <string>
 #include <memory> 
-
 
 class SaolaConfiguration
 {
@@ -38,6 +36,12 @@ private:
 
   std::map<std::string, std::shared_ptr<AppConfiguration>> apps_;
 
+  std::string appConfigDataSourceUrl_ = "";
+
+  int appConfigDataSourceTimeout_ = 1; // In second(s)
+
+  int appConfigDataSourcePollingInterval_ = 30; // In second(s)
+
   SaolaConfiguration(/* args */);
 
 public:
@@ -46,38 +50,90 @@ public:
 
   const std::shared_ptr<AppConfiguration> GetAppConfigurationById(const std::string& id) const;
 
-  const std::map<std::string, std::shared_ptr<AppConfiguration>>& GetApps() const;
+  void GetApps(std::map<std::string, std::shared_ptr<AppConfiguration>>&) const;
 
-  void RemoveApp(const std::string& appId);
-
-  bool IsEnabled() const;
-
-  bool IsEnableRemoveFile() const;
-
-  int GetThrottleExpirationDays() const;
-
-  int GetMaxRetry() const;
-
-  int GetThrottleDelayMs() const;
-  
-  const std::string& GetRoot() const;
-
-  const std::string& GetDataBaseServerIdentifier() const;
-
-  const std::string& GetDbPath() const;
-
-  const bool EnableInMemJobCache() const;
-
-  const int GetInMemJobCacheLimit() const;
-
-  const std::string& GetInMemJobType() const;
-
-  void ApplyConfiguration(const Json::Value& config, bool applyToDB = false);
+  void ApplyConfigurations(const Json::Value& appConfigs, bool clear);
 
   void UpdateConfiguration(const Json::Value& config);
 
-  int GetpollingDBIntervalInSeconds() const;
-
   void ToJson(Json::Value& json);
+
+  void EraseApps()
+  {
+    this->apps_.clear();
+  }
+
+  void RemoveApp(const std::string& appId);
+
+  bool IsEnabled() const
+  {
+    return this->enable_;
+  }
+  
+  bool IsEnableRemoveFile() const
+  {
+    return this->enableRemoveFile_;
+  }
+
+  int GetThrottleExpirationDays() const
+  {
+    return this->throttleExpirationDays_;
+  }
+
+  int GetMaxRetry() const
+  {
+    return this->maxRetry_;
+  }
+  
+
+  int GetThrottleDelayMs() const
+  {
+    return this->throttleDelayMs_;
+  }
+
+  const std::string& GetRoot() const
+  {
+    return this->root_;
+  }
+
+  const std::string& GetDataBaseServerIdentifier() const
+  {
+    return this->databaseServerIdentifier_;
+  }
+
+  const std::string& GetDbPath() const
+  {
+    return this->dbPath_;
+  }
+
+  const bool EnableInMemJobCache() const
+  {
+    return this->enableInMemJobCache_;
+  }
+  
+  const int GetInMemJobCacheLimit() const
+  {
+    return this->inMemJobCacheLimit_;
+  }
+
+  const std::string& GetInMemJobType() const
+  {
+    return this->inMemJobType_;
+  }
+
+  const std::string& GetAppConfigDataSourceUrl() const
+  {
+    return this->appConfigDataSourceUrl_;
+  }
+
+  int GetAppConfigDataSourceTimeout() const
+  {
+    return this->appConfigDataSourceTimeout_;
+  }
+
+  int GetppConfigDataSourcePollingInterval() const
+  {
+    return this->appConfigDataSourcePollingInterval_;
+  }
 
 };

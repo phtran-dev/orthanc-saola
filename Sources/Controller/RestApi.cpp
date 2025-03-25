@@ -201,7 +201,7 @@ static void ApplyPluginConfiguration(OrthancPluginRestOutput *output,
     }
   }
 
-  SaolaConfiguration::Instance().ApplyConfiguration(appConfigs, true);
+  SaolaConfiguration::Instance().ApplyConfigurations(appConfigs, false);
 
   Json::Value answer;
   SaolaConfiguration::Instance().ToJson(answer);
@@ -304,7 +304,7 @@ static void SaveStableEvent(OrthancPluginRestOutput *output,
   if (!app)
   {
     LOG(ERROR) << "[SaveStableEvent] ERROR Cannot find any AppConfiguration " << requestBody["app"].asString();
-    OrthancPluginSendHttpStatusCode(context, output, 400);
+    OrthancPluginSendHttpStatusCode(context, output, 404);
     return;
   }
 

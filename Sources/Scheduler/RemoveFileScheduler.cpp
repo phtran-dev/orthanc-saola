@@ -180,7 +180,10 @@ void RemoveFileScheduler::Start()
 
   std::map<std::string, int> directories;
 
-  for (const auto &app : SaolaConfiguration::Instance().GetApps())
+  std::map<std::string, std::shared_ptr<AppConfiguration>> appConfigMap;
+  SaolaConfiguration::Instance().GetApps(appConfigMap);
+
+  for (const auto &app : appConfigMap)
   {
     if (app.second->type_ == EXPORTER_APP_TYPE)
     {

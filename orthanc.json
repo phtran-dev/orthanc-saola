@@ -101,7 +101,8 @@
     "Root": "/saola/",
     "MaxRetry": 1,
     "PollingDBInSeconds": 60, // Default 30
-    "DataSource.Url" : "http://localhost:4001",
+    "RQLite.DataSource.Url" : "http://localhost:4001",
+    "RQLite.DataSource.Timeout" : 1, // 1 second
     "Apps" : [
       {
         "Id": "Ris1",

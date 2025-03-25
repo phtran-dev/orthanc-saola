@@ -36,44 +36,14 @@ void PollingDBScheduler::MonitorDatabase()
 {
   while (this->m_state == State_Running)
   {
-    Json::Value appConfigs;
-    Saola::AppConfigDatabase::Instance().GetAppConfigs(appConfigs);
-
-    std::map<std::string, Json::Value> appConfigMap;
-    for (const auto& appConfig : appConfigs)
+    if (Saola::AppConfigDatabase::Instance().IsEnabled())
     {
-      appConfigMap[appConfig["Id"].asString()] = appConfig;
+      Json::Value appConfigs;
+      Saola::AppConfigDatabase::Instance().GetAppConfigs(appConfigs);
+      SaolaConfiguration::Instance().ApplyConfigurations(appConfigs, true);
     }
 
-    Json::Value newAppConfigs = Json::arrayValue;
-    for (const auto& appConfig : appConfigMap)
-    {
-      if (SaolaConfiguration::Instance().GetApps().find(appConfig.first) == SaolaConfiguration::Instance().GetApps().end())
-      {
-        newAppConfigs.append(appConfig.second);
-      }
-      else
-      {
-        SaolaConfiguration::Instance().UpdateConfiguration(appConfig.second);
-      }
-    }
-
-    if (!newAppConfigs.empty())
-    {
-      // Add new AppConfiguration
-      SaolaConfiguration::Instance().ApplyConfiguration(newAppConfigs);
-    }
-
-    for (const auto& app : SaolaConfiguration::Instance().GetApps())
-    {
-      if (appConfigMap.find(app.first) == appConfigMap.end())
-      {
-        // Remove AppConfiguration
-        SaolaConfiguration::Instance().RemoveApp(app.first);
-      }
-    }
-
-    for (unsigned int i = 0; i < SaolaConfiguration::Instance().GetpollingDBIntervalInSeconds() * 10; i++)
+    for (unsigned int i = 0; i < SaolaConfiguration::Instance().GetppConfigDataSourcePollingInterval() * 10; i++)
     {
       if (this->m_state != State_Running)
       {

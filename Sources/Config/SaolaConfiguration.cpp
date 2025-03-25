@@ -40,16 +40,20 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->inMemJobType_ = saola.GetStringValue("InMemJobCacheType", "DicomModalityStore");
   this->pollingDBIntervalInSeconds_ = saola.GetIntegerValue("PollingDBInSeconds", 30);
 
-  if (!saola.GetStringValue("DataSource.Url", "").empty())
+  this->appConfigDataSourceUrl_ = saola.GetStringValue("AppConfig.DataSource.Url", "");
+  this->appConfigDataSourceTimeout_ = saola.GetIntegerValue("AppConfig.DataSource.Timeout", 1);
+  this->appConfigDataSourcePollingInterval_ = saola.GetIntegerValue("AppConfig.DataSource.PollingInterval", 30);
+
+  if (!this->appConfigDataSourceUrl_.empty())
   {
-    Saola::AppConfigDatabase::Instance().Open(saola.GetStringValue("DataSource.Url", ""));
+    Saola::AppConfigDatabase::Instance().Open(this->appConfigDataSourceUrl_, this->appConfigDataSourceTimeout_);
     Json::Value apps;
     Saola::AppConfigDatabase::Instance().GetAppConfigs(apps);
-    this->ApplyConfiguration(apps);
+    this->ApplyConfigurations(apps, true);
   }
   else if (saola.GetJson().isMember("Apps"))
   {
-    this->ApplyConfiguration(saola.GetJson()["Apps"]);
+    this->ApplyConfigurations(saola.GetJson()["Apps"], true);
   }
 }
 
@@ -62,6 +66,16 @@ SaolaConfiguration &SaolaConfiguration::Instance()
 
 const std::shared_ptr<AppConfiguration> SaolaConfiguration::GetAppConfigurationById(const std::string &id) const
 {
+  if (Saola::AppConfigDatabase::Instance().IsEnabled())
+  {
+    Json::Value appConfig;
+    Saola::AppConfigDatabase::Instance().GetAppConfigById(appConfig, id);
+    if (!appConfig.empty())
+    {
+      return std::make_shared<AppConfiguration>(appConfig);
+    }
+  }
+
   const auto appIt = this->apps_.find(id);
   if (appIt != this->apps_.end())
   {
@@ -71,9 +85,27 @@ const std::shared_ptr<AppConfiguration> SaolaConfiguration::GetAppConfigurationB
   return std::shared_ptr<AppConfiguration>();
 }
 
-const std::map<std::string, std::shared_ptr<AppConfiguration>> &SaolaConfiguration::GetApps() const
+void SaolaConfiguration::GetApps(std::map<std::string, std::shared_ptr<AppConfiguration>> &configMap) const
 {
-  return this->apps_;
+  if (Saola::AppConfigDatabase::Instance().IsEnabled())
+  {
+    Json::Value appConfigs;
+    Saola::AppConfigDatabase::Instance().GetAppConfigs(appConfigs);
+    if (!appConfigs.empty())
+    {
+      std::map<std::string, std::shared_ptr<AppConfiguration>> configMap;
+      for (const auto& appConfig : appConfigs)
+      {
+        configMap.emplace(appConfig["Id"].asString(), std::make_shared<AppConfiguration>(appConfig));
+      }
+      return;
+    }
+  }
+
+  for (const auto& app : this->apps_)
+  {
+    configMap.emplace(app.first, app.second);
+  }
 }
 
 void SaolaConfiguration::RemoveApp(const std::string& appId)
@@ -85,63 +117,12 @@ void SaolaConfiguration::RemoveApp(const std::string& appId)
   }
 }
 
-int SaolaConfiguration::GetMaxRetry() const
+void SaolaConfiguration::ApplyConfigurations(const Json::Value &appConfigs, bool clear)
 {
-  return this->maxRetry_;
-}
-
-int SaolaConfiguration::GetThrottleDelayMs() const
-{
-  return this->throttleDelayMs_;
-}
-
-bool SaolaConfiguration::IsEnabled() const
-{
-  return this->enable_;
-}
-
-bool SaolaConfiguration::IsEnableRemoveFile() const
-{
-  return this->enableRemoveFile_;
-}
-
-int SaolaConfiguration::GetThrottleExpirationDays() const
-{
-  return this->throttleExpirationDays_;
-}
-
-const std::string &SaolaConfiguration::GetRoot() const
-{
-  return this->root_;
-}
-
-const std::string &SaolaConfiguration::GetDataBaseServerIdentifier() const
-{
-  return this->databaseServerIdentifier_;
-}
-
-const std::string &SaolaConfiguration::GetDbPath() const
-{
-  return this->dbPath_;
-}
-
-const bool SaolaConfiguration::EnableInMemJobCache() const
-{
-  return this->enableInMemJobCache_;
-}
-
-const int SaolaConfiguration::GetInMemJobCacheLimit() const
-{
-  return this->inMemJobCacheLimit_;
-}
-
-const std::string &SaolaConfiguration::GetInMemJobType() const
-{
-  return this->inMemJobType_;
-}
-
-void SaolaConfiguration::ApplyConfiguration(const Json::Value &appConfigs, bool applyToDB)
-{
+  if (clear)
+  {
+    this->apps_.clear();
+  }
   std::list<std::shared_ptr<AppConfiguration>> apps;
   for (const auto &appConfig : appConfigs)
   {
@@ -157,146 +138,16 @@ void SaolaConfiguration::ApplyConfiguration(const Json::Value &appConfigs, bool 
       continue;
     }
 
-    if (this->apps_.find(appConfig["Id"].asString()) != this->apps_.end())
+    Saola::AppConfigDatabase::Instance().SaveAppConfig(appConfig);
+
+    std::string id = appConfig["Id"].asString();
+    auto appIT = this->apps_.find(id);
+    if (appIT != this->apps_.end())
     {
-      continue;
+      this->apps_.erase(appIT);
     }
 
-    std::shared_ptr<AppConfiguration> app = std::make_shared<AppConfiguration>();
-    app->id_ = appConfig["Id"].asString();
-    app->enable_ = appConfig["Enable"].asBool();
-    if (appConfig.isMember("Authentication"))
-    {
-      app->authentication_ = appConfig["Authentication"].asString();
-    }
-    if (appConfig.isMember("Method"))
-    {
-      std::string methodName = appConfig["Method"].asString();
-      Orthanc::Toolbox::ToUpperCase(methodName);
-      if (methodName == "POST")
-      {
-        app->method_ = OrthancPluginHttpMethod_Post;
-      }
-      else if (methodName == "GET")
-      {
-        app->method_ = OrthancPluginHttpMethod_Get;
-      }
-      else if (methodName == "PUT")
-      {
-        app->method_ = OrthancPluginHttpMethod_Put;
-      }
-      else if (methodName == "DELETE")
-      {
-        app->method_ = OrthancPluginHttpMethod_Delete;
-      }
-    }
-
-    if (appConfig.isMember("LuaCallback") && !appConfig["LuaCallback"].isNull() && !appConfig["LuaCallback"].empty())
-    {
-      app->luaCallback_ = appConfig["LuaCallback"].asString();
-    }
-
-    app->type_ = appConfig["Type"].asString();
-    app->url_ = appConfig["Url"].asString();
-
-    if (appConfig.isMember("Delay"))
-    {
-      app->delay_ = appConfig["Delay"].asInt();
-    }
-    if (appConfig.isMember("Timeout"))
-    {
-      app->timeOut_ = appConfig["Timeout"].asInt();
-    }
-
-    if (app->type_ == "StoreServer" || app->type_ == "Ris")
-    {
-      // Default Mapping
-      app->fieldMapping_["aeTitle"] =  "RemoteAET";
-      app->fieldMapping_["ipAddress"] = "RemoteIP";
-      app->fieldMapping_["accessionNumber"] = "AccessionNumber";
-      app->fieldMapping_["patientId"] = "PatientID";
-      app->fieldMapping_["patientName"] = "PatientName";
-      app->fieldMapping_["gender"] = "PatientSex";
-      app->fieldMapping_["age"] = "PatientAge";
-      app->fieldMapping_["birthDate"] = "PatientBirthDate";
-      app->fieldMapping_["bodyPartExamined"] = "BodyPartExamined";
-      app->fieldMapping_["description"] = "StudyDescription";
-      app->fieldMapping_["institutionName"] = "InstitutionName";
-      app->fieldMapping_["studyDate"] = "StudyDate";
-      app->fieldMapping_["studyTime"] = "StudyTime";
-      app->fieldMapping_["studyInstanceUID"] = "StudyInstanceUID";
-      app->fieldMapping_["manufacturerModelName"] = "ManufacturerModelName";
-      app->fieldMapping_["modalityType"] = "Modality";
-      app->fieldMapping_["numOfImages"] = "CountInstances";
-      app->fieldMapping_["numOfSeries"] = "CountSeries";
-      app->fieldMapping_["operatorName"] = "OperatorsName";
-      app->fieldMapping_["referringPhysician"] = "ReferringPhysicianName";
-      app->fieldMapping_["stationName"] = "StationName";
-
-      app->fieldMapping_["storeId"] = "StoreID";
-      app->fieldMapping_["storeNumOfStudies"] = "CountStudies";
-      app->fieldMapping_["storeSize"] = "TotalDiskSizeMB";
-      app->fieldMapping_["publicStudyUID"] = "PublicStudyUID";
-      app->fieldMapping_["studyNumOfSeries"] = "CountSeries";
-      app->fieldMapping_["studyNumOfInstances"] = "CountInstances";
-      app->fieldMapping_["studySize"] = "DicomDiskSizeMB";
-      app->fieldMapping_["modalitiesInStudy"] = "ModalitiesInStudy";
-      app->fieldMapping_["numberOfStudyRelatedSeries"] = "NumberOfStudyRelatedSeries";
-      app->fieldMapping_["numberOfStudyRelatedInstances"] = "NumberOfStudyRelatedInstances";
-
-      app->fieldMapping_["series"] = Series;
-      app->fieldMapping_[std::string(Series) + "_seriesInstanceUID"] = Series_SeriesInstanceUID;
-      app->fieldMapping_[std::string(Series) + "_seriesDate"] = Series_SeriesDate;
-      app->fieldMapping_[std::string(Series) + "_seriesTime"] = Series_SeriesTime;
-      app->fieldMapping_[std::string(Series) + "_modality"] = Series_Modality;
-      app->fieldMapping_[std::string(Series) + "_manufacturer"] = Series_Manufacturer;
-      app->fieldMapping_[std::string(Series) + "_stationName"] = Series_StationName;
-      app->fieldMapping_[std::string(Series) + "_seriesDescription"] = Series_SeriesDescription;
-      app->fieldMapping_[std::string(Series) + "_bodyPartExamined"] = Series_BodyPartExamined;
-      app->fieldMapping_[std::string(Series) + "_sequenceName"] = Series_SequenceName;
-      app->fieldMapping_[std::string(Series) + "_protocolName"] = Series_ProtocolName;
-      app->fieldMapping_[std::string(Series) + "_seriesNumber"] = Series_SeriesNumber;
-      app->fieldMapping_[std::string(Series) + "_cardiacNumberOfImages"] = Series_CardiacNumberOfImages;
-      app->fieldMapping_[std::string(Series) + "_imagesInAcquisition"] = Series_ImagesInAcquisition;
-      app->fieldMapping_[std::string(Series) + "_numberOfTemporalPositions"] = Series_NumberOfTemporalPositions;
-      app->fieldMapping_[std::string(Series) + "_numOfImages"] = Series_NumOfImages;
-      app->fieldMapping_[std::string(Series) + "_numOfSlices"] = Series_NumOfSlices;
-      app->fieldMapping_[std::string(Series) + "_numOfTimeSlices"] = Series_NumOfTimeSlices;
-      app->fieldMapping_[std::string(Series) + "_imageOrientationPatient"] = Series_ImageOrientationPatient;
-      app->fieldMapping_[std::string(Series) + "_seriesType"] = Series_SeriesType;
-      app->fieldMapping_[std::string(Series) + "_operatorsName"] = Series_OperatorsName;
-      app->fieldMapping_[std::string(Series) + "_performedProcedureStepDescription"] = Series_PerformedProcedureStepDescription;
-      app->fieldMapping_[std::string(Series) + "_acquisitionDeviceProcessingDescription"] = Series_AcquisitionDeviceProcessingDescription;
-      app->fieldMapping_[std::string(Series) + "_contrastBolusAgent"] = Series_ContrastBolusAgent;
-    }
-
-    if (appConfig["FieldMappingOverwrite"].asBool())
-    {
-      app->fieldMapping_.clear();
-    }
-
-    for (auto &valueMap : appConfig["FieldMapping"])
-    {
-      for (Json::ValueConstIterator it = valueMap.begin(); it != valueMap.end(); ++it)
-      {
-        app->fieldMapping_[it.key().asString()] = *it;
-      }
-    }
-
-    for (auto &valueMap : appConfig["FieldValues"])
-    {
-      for (const auto &memberName : valueMap.getMemberNames())
-      {
-        app->fieldValues_[memberName] = valueMap[memberName.c_str()];
-      }
-    }
-
-    this->apps_.emplace(app->id_, app);
-    if (applyToDB)
-    {
-      // Save to DB
-      Saola::AppConfigDatabase::Instance().SaveAppConfig(appConfig);
-    }
+    this->apps_.emplace(id, std::make_shared<AppConfiguration>(appConfig));
   }
 }
 
@@ -387,11 +238,6 @@ void SaolaConfiguration::UpdateConfiguration(const Json::Value &appConfig)
   }
 }
 
-int SaolaConfiguration::GetpollingDBIntervalInSeconds() const
-{
-  return this->pollingDBIntervalInSeconds_;
-}
-
 void SaolaConfiguration::ToJson(Json::Value &json)
 {
   json["Enable"] = this->enable_;
@@ -408,6 +254,21 @@ void SaolaConfiguration::ToJson(Json::Value &json)
   json["PollingDBIntervalInSeconds"] = this->pollingDBIntervalInSeconds_;
 
   json["Apps"] = Json::arrayValue;
+
+  if (Saola::AppConfigDatabase::Instance().IsEnabled())
+  {
+    Json::Value appConfigs;
+    Saola::AppConfigDatabase::Instance().GetAppConfigs(appConfigs);
+    if (!appConfigs.empty())
+    {
+      this->apps_.clear();
+      for (const auto& appConfig: appConfigs)
+      {
+        std::shared_ptr<AppConfiguration> config(new AppConfiguration(appConfig));
+        this->apps_.emplace(config->id_, config);
+      }
+    }
+  }
 
   for (const auto &app : this->apps_)
   {
