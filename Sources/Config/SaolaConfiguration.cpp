@@ -385,7 +385,6 @@ void SaolaConfiguration::UpdateConfiguration(const Json::Value &appConfig)
       appIT->second->fieldValues_[memberName] = valueMap[memberName.c_str()];
     }
   }
-
 }
 
 int SaolaConfiguration::GetpollingDBIntervalInSeconds() const
@@ -395,15 +394,25 @@ int SaolaConfiguration::GetpollingDBIntervalInSeconds() const
 
 void SaolaConfiguration::ToJson(Json::Value &json)
 {
-  json["enable_"] = this->enable_;
-  json["root_"] = this->root_;
-  json["maxRetry_"] = this->maxRetry_;
-  json["apps_"] = Json::arrayValue;
+  json["Enable"] = this->enable_;
+  json["EnableRemoveFile"] = this->enableRemoveFile_;
+  json["EnableInMemJobCache"] = this->enableInMemJobCache_;
+  json["InMemJobCacheLimit"] = this->inMemJobCacheLimit_;
+  json["InMemJobType"] = this->inMemJobType_;
+  json["ThrottleExpirationDays"] = this->throttleExpirationDays_;
+  json["MaxRetry"] = this->maxRetry_;
+  json["ThrottleDelayMs"] = this->throttleDelayMs_;
+  json["Root"] = this->root_;
+  json["DatabaseServerIdentifier"] = this->databaseServerIdentifier_;
+  json["DbPath"] = this->dbPath_;
+  json["PollingDBIntervalInSeconds"] = this->pollingDBIntervalInSeconds_;
+
+  json["Apps"] = Json::arrayValue;
 
   for (const auto &app : this->apps_)
   {
     Json::Value appJson;
     app.second->ToJson(appJson);
-    json["apps_"].append(appJson);
+    json["Apps"].append(appJson);
   }
 }

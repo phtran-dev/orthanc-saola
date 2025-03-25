@@ -39,16 +39,17 @@ struct AppConfiguration
 
   void ToJson(Json::Value &json) const
   {
-    json["id_"] = this->id_;
-    json["enable_"] = this->enable_;
-    json["type_"] = this->type_;
-    json["delay_"] = this->delay_;
-    json["timeOut_"] = this->timeOut_;
-    json["url_"] = this->url_;
-    json["authentication_"] = this->authentication_;
-    json["method_"] = this->method_;
-    json["fieldMapping_"] = this->fieldMapping_;
-    json["fieldValues_"] = this->fieldValues_;
-    json["luaCallback_"] = this->luaCallback_;
+    json["Id"] = this->id_;
+    json["Enable"] = this->enable_;
+    json["Type"] = this->type_;
+    json["Delay"] = this->delay_;
+    json["Url"] = this->url_;
+    json["Authentication"] = this->authentication_;
+    json["Method"] = this->method_;
+    json["Timeout"] = this->timeOut_;
+    json["FieldMappingOverwrite"] = this->fieldMappingOverwrite;
+    json["FieldMapping"] = this->fieldMapping_;
+    json["FieldValues"] = this->fieldValues_;
+    json["LuaCallback"] = this->luaCallback_;
   }
 };
