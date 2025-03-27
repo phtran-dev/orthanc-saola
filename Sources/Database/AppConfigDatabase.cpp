@@ -232,8 +232,15 @@ namespace Saola
                 appConfig["FieldMappingOverwrite"] = false;
               }
 
-              Orthanc::Toolbox::ReadJson(appConfig["FieldMapping"], value[9].asString());
-              Orthanc::Toolbox::ReadJson(appConfig["FieldValues"], value[10].asString());
+              if (!value[9].isNull() && !value[9].empty() && !value[9].asString().empty())
+              {
+                Orthanc::Toolbox::ReadJson(appConfig["FieldMapping"], value[9].asString());
+              }
+
+              if (!value[10].isNull() && !value[10].empty() && !value[10].asString().empty())
+              {
+                Orthanc::Toolbox::ReadJson(appConfig["FieldValues"], value[10].asString());
+              }
               
               appConfig["LuaCallback"] = value[11];
             }
