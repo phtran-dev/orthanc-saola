@@ -228,7 +228,7 @@ void SaolaDatabase::FindByRetryLessThan(int retry, std::list<StableEventDTOGet> 
   transaction.Commit();
 }
 
-void SaolaDatabase::FindByAppTypeInRetryLessThan(const std::list<std::string> &appTypes, bool included, int retry, std::list<StableEventDTOGet> &results)
+void SaolaDatabase::FindByAppTypeInRetryLessThan(const std::list<std::string> &appTypes, bool included, int retry, int limit, std::list<StableEventDTOGet> &results)
 {
   boost::mutex::scoped_lock lock(mutex_);
 
@@ -237,10 +237,10 @@ void SaolaDatabase::FindByAppTypeInRetryLessThan(const std::list<std::string> &a
 
   std::string str = boost::algorithm::join(appTypes, "\",\"");
 
-  std::string sql = "SELECT id, iuid, resource_id, resource_type, app_id, app_type, delay_sec, retry, failed_reason, last_updated_time, creation_time FROM StableEventQueues WHERE app_type IN (\"" + str + "\") AND retry <= ? ORDER BY retry ASC LIMIT 1000";
+  std::string sql = "SELECT id, iuid, resource_id, resource_type, app_id, app_type, delay_sec, retry, failed_reason, last_updated_time, creation_time FROM StableEventQueues WHERE app_type IN (\"" + str + "\") AND retry <= ? ORDER BY retry ASC LIMIT " + std::to_string(limit);
   if (!included)
   {
-    sql = "SELECT id, iuid, resource_id, resource_type, app_id, app_type, delay_sec, retry, failed_reason, last_updated_time, creation_time FROM StableEventQueues WHERE app_type NOT IN (\"" + str + "\") AND retry <= ? ORDER BY retry ASC LIMIT 1000";
+    sql = "SELECT id, iuid, resource_id, resource_type, app_id, app_type, delay_sec, retry, failed_reason, last_updated_time, creation_time FROM StableEventQueues WHERE app_type NOT IN (\"" + str + "\") AND retry <= ? ORDER BY retry ASC LIMIT " + std::to_string(limit);
   }
 
   Orthanc::SQLite::Statement statement(db_, sql);
@@ -391,6 +391,7 @@ bool SaolaDatabase::ResetEvents(const std::list<int64_t> &ids)
 void SaolaDatabase::SaveTransferJob(const TransferJobDTOCreate &dto, TransferJobDTOGet &result)
 {
   boost::mutex::scoped_lock lock(mutex_);
+  LOG(INFO) << "[SaolaDatabase::SaveTransferJob] Saving jobId=" << dto.id_;
 
   Orthanc::SQLite::Transaction transaction(db_);
   transaction.Begin();

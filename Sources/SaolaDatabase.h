@@ -101,7 +101,7 @@ public:
 
   void FindByRetryLessThan(int retry, std::list<StableEventDTOGet>& results);
 
-  void FindByAppTypeInRetryLessThan(const std::list<std::string>& appType, bool included, int retry, std::list<StableEventDTOGet>& results);
+  void FindByAppTypeInRetryLessThan(const std::list<std::string>& appType, bool included, int retry, int limit, std::list<StableEventDTOGet>& results);
 
   void SaveTransferJob(const TransferJobDTOCreate& dto, TransferJobDTOGet& result);
 

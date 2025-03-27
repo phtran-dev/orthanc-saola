@@ -50,7 +50,7 @@ namespace Saola
 
   public:
     ExporterJob(bool enableExtendedSopClass,
-              const std::string& rootDir,
+                const std::string& rootDir,
                 Orthanc::ResourceType jobLevel);
 
     virtual ~ExporterJob();

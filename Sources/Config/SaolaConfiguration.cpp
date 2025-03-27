@@ -28,6 +28,7 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->root_ = saola.GetStringValue("Root", "/saola/");
   this->maxRetry_ = saola.GetIntegerValue("MaxRetry", 5);
   this->throttleDelayMs_ = saola.GetIntegerValue("ThrottleDelayMs", 100); // Default 100 milliseconds
+  this->queryLimit_ = saola.GetIntegerValue("QueryLimit", 100); 
 
   this->databaseServerIdentifier_ = OrthancPluginGetDatabaseServerIdentifier(OrthancPlugins::GetGlobalContext());
   std::string pathStorage = configuration.GetStringValue(STORAGE_DIRECTORY, ORTHANC_STORAGE);
@@ -37,7 +38,15 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
 
   this->enableInMemJobCache_ = saola.GetBooleanValue("EnableInMemJobCache", false);
   this->inMemJobCacheLimit_ = saola.GetIntegerValue("InMemJobCacheLimit", 100);
-  this->inMemJobType_ = saola.GetStringValue("InMemJobCacheType", "DicomModalityStore");
+  // ["DicomModalityStore", "Transfer"];
+  saola.LookupSetOfStrings(this->inMemJobTypes_, "InMemJobCacheTypes", true);
+  if (this->enableInMemJobCache_ && this->inMemJobTypes_.empty())
+  {
+    // Set Default
+    this->inMemJobTypes_.insert("DicomModalityStore");
+    this->inMemJobTypes_.insert("PushTransfer");
+    this->inMemJobTypes_.insert("Exporter");
+  }
   this->pollingDBIntervalInSeconds_ = saola.GetIntegerValue("PollingDBInSeconds", 30);
 
   this->appConfigDataSourceUrl_ = saola.GetStringValue("AppConfig.DataSource.Url", "");
@@ -244,7 +253,11 @@ void SaolaConfiguration::ToJson(Json::Value &json)
   json["EnableRemoveFile"] = this->enableRemoveFile_;
   json["EnableInMemJobCache"] = this->enableInMemJobCache_;
   json["InMemJobCacheLimit"] = this->inMemJobCacheLimit_;
-  json["InMemJobType"] = this->inMemJobType_;
+  json["InMemJobTypes"] = Json::arrayValue;
+  for (const auto& inMemJobType : this->inMemJobTypes_)
+  {
+    json["InMemJobTypes"].append(inMemJobType);
+  }
   json["ThrottleExpirationDays"] = this->throttleExpirationDays_;
   json["MaxRetry"] = this->maxRetry_;
   json["ThrottleDelayMs"] = this->throttleDelayMs_;

@@ -4,6 +4,7 @@
 
 #include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
+#include "../Cache/InMemoryJobCache.h"
 #include "../DTO/TransferJobDTOCreate.h"
 #include "../DTO/StableEventDTOCreate.h"
 #include "../DTO/StableEventDTOUpdate.h"
@@ -358,25 +359,11 @@ static bool ProcessAsyncTask(const AppConfiguration &appConfig, StableEventDTOGe
           break; // break loop, // jobStateOk is TRUE
         }
 
-        if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Running))
+        if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Running) ||
+            response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Pending))
         {
-          // @TODO Remove this hard-coded
-          LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " API /jobs/" << job.id_ << ", Response body has State=Running" << ", WAITING until it finishes. Task " << dto.id_ << " creation_time " << dto.creation_time_ << ", now " << boost::posix_time::to_iso_string(Saola::GetNow()) << ", elapsed " << Saola::Elapsed(dto.creation_time_) << " , retention " << RETENTION_EXPIRED << "(s)";
-
-          if (Saola::IsOverDue(dto.creation_time_, RETENTION_EXPIRED))
-          {
-            // Set retry to MAX since we do not want to process this task anymore
-            std::stringstream ss;
-            ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " API /jobs/" << job.id_ << " EXPIRED, Response body has State=Running" << ", WAITING until it finishes. Task " << dto.id_ << " creation_time " << dto.creation_time_ << ", now " << boost::posix_time::to_iso_string(Saola::GetNow()) << ", elapsed " << Saola::Elapsed(dto.creation_time_) << " , retention " << RETENTION_EXPIRED << "(s)";
-            dto.failed_reason_ = ss.str();
-            notification[ERROR_DETAIL] = dto.ToJsonString();
-            notification[ERROR_MESSAGE] = ss.str();
-            dto.retry_ = SaolaConfiguration::Instance().GetMaxRetry();
-          }
-          else
-          {
-            jobStateOk = true;
-          }
+          LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " API /jobs/" << job.id_ << ", Response body has State=" << response["State"].asString() << ", WAITING until it finishes. Task " << dto.id_ << " creation_time " << dto.creation_time_ << ", now " << boost::posix_time::to_iso_string(Saola::GetNow()) << ", elapsed " << Saola::Elapsed(dto.creation_time_) << " , retention " << RETENTION_EXPIRED << "(s)";
+          jobStateOk = true;
           break; // break loop, jobState is now JobState_Running
         }
       }
@@ -471,7 +458,7 @@ static bool ProcessSyncTask(const AppConfiguration &appConfig, StableEventDTOGet
   catch (Orthanc::OrthancException &e)
   {
     std::stringstream ss;
-    ss << "[ProcessSyncTask][Task-" << dto.id_ << "]" << " ERROR Orthanc::OrthancException: " << e.What();
+    ss << "[ProcessSyncTask][Task-" << dto.id_ << "]" << " ERROR Orthanc::OrthancException: e=" << e.What();
     dto.failed_reason_ = ss.str();
     notification[ERROR_DETAIL] = dto.ToJsonString();
     notification[ERROR_MESSAGE] = ss.str();
@@ -479,7 +466,7 @@ static bool ProcessSyncTask(const AppConfiguration &appConfig, StableEventDTOGet
   catch (std::exception &e)
   {
     std::stringstream ss;
-    ss << "[ProcessSyncTask][Task-" << dto.id_ << "]" << " ERROR std::exception: " << e.what();
+    ss << "[ProcessSyncTask][Task-" << dto.id_ << "]" << " ERROR std::exception: e=" << e.what();
     dto.failed_reason_ = ss.str();
     notification[ERROR_DETAIL] = dto.ToJsonString();
     notification[ERROR_MESSAGE] = ss.str();
@@ -583,20 +570,38 @@ void StableEventScheduler::Start()
     {
       LOG(TRACE) << "[StableEventScheduler::MonitorDatabase] Start monitoring Ris/StoreServer tasks ...";
       std::list<StableEventDTOGet> results;
-      SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, true, SaolaConfiguration::Instance().GetMaxRetry(), results);
+      SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, true, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), results);
       MonitorTasks(results);
-      std::this_thread::sleep_for(std::chrono::milliseconds(SaolaConfiguration::Instance().GetThrottleDelayMs()));
+      for (int i = 0; i < 10; i++)
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(SaolaConfiguration::Instance().GetThrottleDelayMs()));
+      }
     } });
 
   this->m_worker2 = new std::thread([this]()
                                     {
     while (this->m_state == State_Running)
     {
-      LOG(TRACE) << "[StableEventScheduler::MonitorDatabase] Start monitoring Transfer/Exporter tasks ...";
+      LOG(TRACE) << "[StableEventScheduler::MonitorDatabase] Start monitoring Transfer/Exporter/StoreSCU tasks ...";
       std::list<StableEventDTOGet> results;
-      SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), results);
+      if (SaolaConfiguration::Instance().EnableInMemJobCache())
+      {
+        if (InMemoryJobCache::Instance().GetSize() < SaolaConfiguration::Instance().GetInMemJobCacheLimit())
+        {
+          SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), results);
+        }
+      }
+      else
+      {
+        SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), results);
+      }
+
       MonitorTasks(results);
-      std::this_thread::sleep_for(std::chrono::milliseconds(SaolaConfiguration::Instance().GetThrottleDelayMs()));
+
+      for (int i = 0; i < 10; i++)
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(SaolaConfiguration::Instance().GetThrottleDelayMs()));
+      }
     } });
 }
 

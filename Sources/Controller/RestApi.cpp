@@ -622,7 +622,7 @@ void DicomCStoreStudy(OrthancPluginRestOutput *output,
 
   if (SaolaConfiguration::Instance().EnableInMemJobCache() && InMemoryJobCache::Instance().GetSize() >= SaolaConfiguration::Instance().GetInMemJobCacheLimit())
   {
-    LOG(ERROR) << "[DicomCStoreStudy] Job " << SaolaConfiguration::Instance().GetInMemJobType() << " has reached limit of " << InMemoryJobCache::Instance().GetSize()
+    LOG(ERROR) << "[DicomCStoreStudy] Job DicomModalityStore" << " has reached limit of " << InMemoryJobCache::Instance().GetSize()
       << " / " << SaolaConfiguration::Instance().GetInMemJobCacheLimit();
     return OrthancPluginSendHttpStatusCode(context, output, 503);
   }

@@ -18,13 +18,15 @@ private:
 
   int inMemJobCacheLimit_;
 
-  std::string inMemJobType_;
+  std::set<std::string> inMemJobTypes_;
 
   int throttleExpirationDays_;
 
   int maxRetry_ = 5;
 
-  int throttleDelayMs_;
+  int queryLimit_ = 10;
+
+  int throttleDelayMs_ = 100;
 
   std::string root_;
 
@@ -84,6 +86,11 @@ public:
   {
     return this->maxRetry_;
   }
+
+  int GetQueryLimit() const
+  {
+    return this->queryLimit_;
+  }
   
 
   int GetThrottleDelayMs() const
@@ -116,9 +123,9 @@ public:
     return this->inMemJobCacheLimit_;
   }
 
-  const std::string& GetInMemJobType() const
+  const std::set<std::string>& GetInMemJobTypes() const
   {
-    return this->inMemJobType_;
+    return this->inMemJobTypes_;
   }
 
   const std::string& GetAppConfigDataSourceUrl() const
