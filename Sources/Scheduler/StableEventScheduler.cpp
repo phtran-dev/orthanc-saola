@@ -336,8 +336,7 @@ static bool ProcessAsyncTask(const AppConfiguration &appConfig, StableEventDTOGe
           continue; // jobStateOk is still FALSE
         }
 
-        if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Pending) ||
-            response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Failure) ||
+        if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Failure) ||
             response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Paused) ||
             response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Retry))
         {

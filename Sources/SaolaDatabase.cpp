@@ -398,6 +398,7 @@ void SaolaDatabase::SaveTransferJob(const TransferJobDTOCreate &dto, TransferJob
 
   std::list<TransferJobDTOGet> existings;
   {
+    LOG(INFO) << "SaolaDatabase::SaveTransferJob BEGIN sql=" << "SELECT id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE id=? LIMIT 1";
     Orthanc::SQLite::Statement statement(db_, "SELECT id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE id=? LIMIT 1");
     statement.BindString(0, dto.id_);
     while (statement.Step())
@@ -406,26 +407,33 @@ void SaolaDatabase::SaveTransferJob(const TransferJobDTOCreate &dto, TransferJob
 
       existings.push_back(r);
     }
+    LOG(INFO) << "SaolaDatabase::SaveTransferJob END sql=" << "SELECT id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE id=? LIMIT 1";
   }
   if (existings.empty())
   {
+    LOG(INFO) << "SaolaDatabase::SaveTransferJob BEGIN sql=" << "INSERT INTO TransferJobs (id, queue_id, last_updated_time, creation_time) VALUES(?, ?, ?, ?)";
     Orthanc::SQLite::Statement statement(db_, "INSERT INTO TransferJobs (id, queue_id, last_updated_time, creation_time) VALUES(?, ?, ?, ?)");
     statement.BindString(0, dto.id_);
     statement.BindInt64(1, dto.queue_id_);
     statement.BindString(2, boost::posix_time::to_iso_string(Saola::GetNow()));
     statement.BindString(3, boost::posix_time::to_iso_string(Saola::GetNow()));
     statement.Run();
+    LOG(INFO) << "SaolaDatabase::SaveTransferJob END sql=" << "INSERT INTO TransferJobs (id, queue_id, last_updated_time, creation_time) VALUES(?, ?, ?, ?)";
+
 
     result.last_updated_time_ = boost::posix_time::to_iso_string(Saola::GetNow());
     result.creation_time_ = boost::posix_time::to_iso_string(Saola::GetNow());
   }
   else
   {
+    std::string sql = "UPDATE TransferJobs SET queue_id=" + std::to_string(dto.queue_id_) + " , last_updated_time=" + boost::posix_time::to_iso_string(Saola::GetNow()) + " WHERE id=" + dto.id_;
+    LOG(INFO) << "SaolaDatabase::SaveTransferJob BEGIN sql=" << sql;
     Orthanc::SQLite::Statement statement(db_, "UPDATE TransferJobs SET queue_id=?, last_updated_time=? WHERE id=?");
-    statement.BindString(0, boost::posix_time::to_iso_string(Saola::GetNow()));
-    statement.BindInt64(1, dto.queue_id_);
+    statement.BindInt64(0,  dto.queue_id_);
+    statement.BindString(1, boost::posix_time::to_iso_string(Saola::GetNow()));
     statement.BindString(2, dto.id_);
     statement.Run();
+    LOG(INFO) << "SaolaDatabase::SaveTransferJob END sql=" << sql;
 
     result.last_updated_time_ = boost::posix_time::to_iso_string(Saola::GetNow());
     result.creation_time_ = existings.front().creation_time_;
