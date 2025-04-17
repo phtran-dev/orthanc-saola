@@ -20,7 +20,7 @@ cmake_minimum_required(VERSION 2.8)
 project(OrthancSaola)
 
 set(ORTHANC_PLUGIN_NAME "orthanc-saola")
-set(ORTHANC_PLUGIN_VERSION "1.5.1.rqlite")
+set(ORTHANC_PLUGIN_VERSION "1.5.2.rqlite")
 
 if (ORTHANC_PLUGIN_VERSION STREQUAL "mainline")
   set(ORTHANC_FRAMEWORK_DEFAULT_VERSION "mainline")
@@ -140,6 +140,7 @@ add_custom_target(
           
 add_library(OrthancSaola SHARED
   Resources/Orthanc/Plugins/OrthancPluginCppWrapper.cpp
+  Sources/Database/RQLite.cpp
   Sources/Database/AppConfigDatabase.cpp
   Sources/Config/SaolaConfiguration.cpp
   Sources/SaolaDatabase.cpp

@@ -50,7 +50,7 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->pollingDBIntervalInSeconds_ = saola.GetIntegerValue("PollingDBInSeconds", 30);
 
   this->appConfigDataSourceUrl_ = saola.GetStringValue("AppConfig.DataSource.Url", "");
-  this->appConfigDataSourceTimeout_ = saola.GetIntegerValue("AppConfig.DataSource.Timeout", 1);
+  this->appConfigDataSourceTimeout_ = saola.GetIntegerValue("AppConfig.DataSource.Timeout", 5);
   this->appConfigDataSourcePollingInterval_ = saola.GetIntegerValue("AppConfig.DataSource.PollingInterval", 30);
 
   if (!this->appConfigDataSourceUrl_.empty())
@@ -124,6 +124,7 @@ void SaolaConfiguration::RemoveApp(const std::string& appId)
   {
     this->apps_.erase(it);
   }
+  Saola::AppConfigDatabase::Instance().DeleteAppConfigById(appId);
 }
 
 void SaolaConfiguration::ApplyConfigurations(const Json::Value &appConfigs, bool clear)

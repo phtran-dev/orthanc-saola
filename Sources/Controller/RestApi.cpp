@@ -10,6 +10,8 @@
 
 #include "../Cache/InMemoryJobCache.h"
 
+#include "../Database/AppConfigDatabase.h"
+
 #include <Toolbox.h>
 #include <Logging.h>
 #include <MultiThreading/SharedMessageQueue.h>
@@ -123,6 +125,43 @@ static void GetPluginConfiguration(OrthancPluginRestOutput *output,
   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
 }
 
+static void GetAppConfiguration(OrthancPluginRestOutput *output,
+                                const char *url,
+                                const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+  if (request->method != OrthancPluginHttpMethod_Get)
+  {
+    OrthancPluginSendMethodNotAllowed(context, output, "GET");
+    return;
+  }
+
+  std::string appId{request->groups[0]};
+  Json::Value appConfig;
+  Saola::AppConfigDatabase::Instance().GetAppConfigById(appConfig, appId);
+
+  std::string s = appConfig.toStyledString();
+  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+}
+
+static void DeleteAppConfiguration(OrthancPluginRestOutput *output,
+  const char *url,
+  const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+  if (request->method != OrthancPluginHttpMethod_Delete)
+  {
+  OrthancPluginSendMethodNotAllowed(context, output, "DELETE");
+  return;
+  }
+
+  std::string appId{request->groups[0]};
+  SaolaConfiguration::Instance().RemoveApp(appId);
+
+  std::string s = "{}";
+  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+}
+
 static void ApplyPluginConfiguration(OrthancPluginRestOutput *output,
                                      const char *url,
                                      const OrthancPluginHttpRequest *request)
@@ -130,9 +169,9 @@ static void ApplyPluginConfiguration(OrthancPluginRestOutput *output,
   OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
   if (request->method != OrthancPluginHttpMethod_Post)
   {
-    return OrthancPluginSendMethodNotAllowed(context, output, "Post"); 
+    return OrthancPluginSendMethodNotAllowed(context, output, "Post");
   }
-  
+
   Json::Value appConfigs;
   OrthancPlugins::ReadJson(appConfigs, request->body, request->bodySize);
 
@@ -143,7 +182,7 @@ static void ApplyPluginConfiguration(OrthancPluginRestOutput *output,
   }
 
   // Validate requestBody
-  for (const auto& appConfig : appConfigs)
+  for (const auto &appConfig : appConfigs)
   {
     if (appConfig.empty() || !appConfig.isObject())
     {
@@ -187,8 +226,8 @@ static void ApplyPluginConfiguration(OrthancPluginRestOutput *output,
           OrthancPluginSendHttpStatusCode(context, output, 400);
           return;
         }
-  
-        for (const auto& value : appConfig[key])
+
+        for (const auto &value : appConfig[key])
         {
           if (!value.isObject() || value.size() != 1)
           {
@@ -623,10 +662,9 @@ void DicomCStoreStudy(OrthancPluginRestOutput *output,
   if (SaolaConfiguration::Instance().EnableInMemJobCache() && InMemoryJobCache::Instance().GetSize() >= SaolaConfiguration::Instance().GetInMemJobCacheLimit())
   {
     LOG(ERROR) << "[DicomCStoreStudy] Job DicomModalityStore" << " has reached limit of " << InMemoryJobCache::Instance().GetSize()
-      << " / " << SaolaConfiguration::Instance().GetInMemJobCacheLimit();
+               << " / " << SaolaConfiguration::Instance().GetInMemJobCacheLimit();
     return OrthancPluginSendHttpStatusCode(context, output, 503);
   }
-
 
   const char *modalityId = request->groups[0];
   Json::Value body;
@@ -897,6 +935,9 @@ void SplitStudy(OrthancPluginRestOutput *output,
 
 void RegisterRestEndpoint()
 {
+  OrthancPlugins::RegisterRestCallback<GetAppConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/configuration/apps/([^/]*)", true);
+  OrthancPlugins::RegisterRestCallback<DeleteAppConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/configuration/delete-apps/([^/]*)", true);
+
   OrthancPlugins::RegisterRestCallback<GetPluginConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/configuration", true);
   OrthancPlugins::RegisterRestCallback<ApplyPluginConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/configuration/apply", true);
   OrthancPlugins::RegisterRestCallback<HandleStableEvents>(SaolaConfiguration::Instance().GetRoot() + "event-queues", true);

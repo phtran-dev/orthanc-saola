@@ -1,5 +1,7 @@
 #pragma once
 
+#include "RQLite.h"
+
 #include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 
@@ -18,6 +20,7 @@ namespace Saola
   private:
     boost::mutex                 mutex_;
     OrthancPlugins::HttpClient   client_;
+    std::unique_ptr<rqlite::RqliteClient>         rqliteClient_;
     std::string                  url_;
     int                          timeout_ = 1;
     bool                         enabled_;

@@ -1,4 +1,6 @@
 #include "AppConfigDatabase.h"
+#include "RQLite.h"
+
 
 #include <EmbeddedResources.h>
 #include <Toolbox.h>
@@ -24,54 +26,62 @@ namespace Saola
     bool existing = false;
 
     {
-      std::string encoded_sql;
-      Orthanc::Toolbox::UriEncode(encoded_sql, "SELECT name FROM sqlite_master WHERE name=\"AppConfiguration\"");
-      client_.SetUrl(this->url_ + "/db/query?q=" + encoded_sql);
-      client_.SetMethod(OrthancPluginHttpMethod_Get);
-      Json::Value answerBody;
-      OrthancPlugins::HttpClient::HttpHeaders answerHeaders;
-      client_.Execute(answerHeaders, answerBody);      
+      std::string sql = "SELECT name FROM sqlite_master WHERE name=?";
+      rqlite::QueryResponse queryResp = rqliteClient_->querySingle(sql, "AppConfiguration");
 
-      if (answerBody.isMember("results"))
+      for (const auto& result : queryResp.results)
       {
-        auto& results = answerBody["results"];
-        if (results.isArray() && results.size() > 0)
+        for (const auto& row : result.values) 
         {
-          if (!results[0].isMember("error") && results[0].isMember("values"))
-          {
-            for (const auto& values : results[0]["values"])
+            for (const auto& value : row) 
             {
-              for (const auto& value : values)
+              if (value.asString() == "AppConfiguration")
               {
-                if (value.asString() == "AppConfiguration")
-                {
-                  existing = true;
-                }
+                existing = true;
               }
             }
-          }
         }
       }
+
+
+
+      // std::string encoded_sql;
+      // Orthanc::Toolbox::UriEncode(encoded_sql, "SELECT name FROM sqlite_master WHERE name=\"AppConfiguration\"");
+      // client_.SetUrl(this->url_ + "/db/query?q=" + encoded_sql);
+      // client_.SetMethod(OrthancPluginHttpMethod_Get);
+      // Json::Value answerBody;
+      // OrthancPlugins::HttpClient::HttpHeaders answerHeaders;
+      // client_.Execute(answerHeaders, answerBody);      
+
+      // if (answerBody.isMember("results"))
+      // {
+      //   auto& results = answerBody["results"];
+      //   if (results.isArray() && results.size() > 0)
+      //   {
+      //     if (!results[0].isMember("error") && results[0].isMember("values"))
+      //     {
+      //       for (const auto& values : results[0]["values"])
+      //       {
+      //         for (const auto& value : values)
+      //         {
+      //           if (value.asString() == "AppConfiguration")
+      //           {
+      //             existing = true;
+      //           }
+      //         }
+      //       }
+      //     }
+      //   }
+      // }
     }
 
     if (!existing)
     {
       std::string sql;
       Orthanc::EmbeddedResources::GetFileResource(sql, Orthanc::EmbeddedResources::PREPARE_APPCONFIG_DATABASE);
-      Json::Value innerSQL = Json::arrayValue;
-      innerSQL.append(sql);
-      client_.SetUrl(this->url_ + "/db/execute");
-      client_.SetMethod(OrthancPluginHttpMethod_Post);
-
-      Json::Value requestBody = Json::arrayValue;
-      requestBody.append(innerSQL);
-      client_.SetBody(requestBody.toStyledString());
-      Json::Value answerBody;
-      OrthancPlugins::HttpClient::HttpHeaders answerHeaders;
-      client_.Execute(answerHeaders, answerBody);
+      rqliteClient_->executeSingle(sql);
     }
   }
-
 
   void AppConfigDatabase::Open(const std::string& url, int timeout)
   {
@@ -79,6 +89,7 @@ namespace Saola
     this->enabled_ = true;
     this->url_ = url;
     this->timeout_ = timeout;
+    rqliteClient_.reset(new rqlite::RqliteClient(url, timeout));
     Initialize();
   }
     
@@ -115,63 +126,48 @@ namespace Saola
     try 
     {
       std::string sql = "SELECT Id, Enable, Type, Delay, Url, Authentication, Method, Timeout, FieldMappingOverwrite, FieldMapping, FieldValues, LuaCallback FROM AppConfiguration";
-
-      std::string encoded_sql;
-      Orthanc::Toolbox::UriEncode(encoded_sql, sql);
-      client_.SetUrl(this->url_ + "/db/query?q=" + encoded_sql);
-      client_.SetMethod(OrthancPluginHttpMethod_Get);
-      client_.SetTimeout(this->timeout_);
-      Json::Value answerBody;
-      OrthancPlugins::HttpClient::HttpHeaders answerHeaders;
-      client_.Execute(answerHeaders, answerBody);
-      if (answerBody.isMember("results"))
+      rqlite::QueryResponse queryResp = rqliteClient_->querySingle(sql);
+      for (const auto& result : queryResp.results)
       {
-        auto& results = answerBody["results"];
-        if (results.isArray() && results.size() > 0)
+        for (const auto& row : result.values) 
         {
-          if (!results[0].isMember("error") && results[0].isMember("values"))
+          Json::Value config;
+          config["Id"] = row[0];
+          if (!row[1].isNull())
           {
-            for (const auto& value : results[0]["values"])
-            {
-              Json::Value config;
-              config["Id"] = value[0];
-              if (!value[1].isNull())
-              {
-                config["Enable"] = value[1].asString() == "true";
-              }
-              else
-              {
-                config["Enable"] = false;
-              }
-              config["Type"] = value[2];
-              config["Delay"] = value[3];
-              config["Url"] = value[4];
-              config["Authentication"] = value[5];
-              config["Method"] = value[6];
-              config["Timeout"] = value[7];
-              if (!value[8].isNull())
-              {
-                config["FieldMappingOverwrite"] = value[8].asString() == "true";
-              }
-              else
-              {
-                config["FieldMappingOverwrite"] = false;
-              }
-              
-              if (!value[9].isNull() && !value[9].empty() && !value[9].asString().empty())
-              {
-                Orthanc::Toolbox::ReadJson(config["FieldMapping"], value[9].asString());
-              }
-
-              if (!value[10].isNull() && !value[10].empty() && !value[10].asString().empty())
-              {
-                Orthanc::Toolbox::ReadJson(config["FieldValues"], value[10].asString());
-              }
-
-              config["LuaCallback"] = value[11];
-              appConfigs.append(config);
-            }
+            config["Enable"] = row[1].asString() == "true";
           }
+          else
+          {
+            config["Enable"] = false;
+          }
+          config["Type"] = row[2];
+          config["Delay"] = row[3];
+          config["Url"] = row[4];
+          config["Authentication"] = row[5];
+          config["Method"] = row[6];
+          config["Timeout"] = row[7];
+          if (!row[8].isNull())
+          {
+            config["FieldMappingOverwrite"] = row[8].asString() == "true";
+          }
+          else
+          {
+            config["FieldMappingOverwrite"] = false;
+          }
+          
+          if (!row[9].isNull() && !row[9].empty() && !row[9].asString().empty())
+          {
+            Orthanc::Toolbox::ReadJson(config["FieldMapping"], row[9].asString());
+          }
+
+          if (!row[10].isNull() && !row[10].empty() && !row[10].asString().empty())
+          {
+            Orthanc::Toolbox::ReadJson(config["FieldValues"], row[10].asString());
+          }
+
+          config["LuaCallback"] = row[11];
+          appConfigs.append(config);
         }
       }
     }
@@ -185,66 +181,48 @@ namespace Saola
   {
     try 
     {
-      Json::Value sql = Json::arrayValue;
-      sql.append("SELECT Id, Enable, Type, Delay, Url, Authentication, Method, Timeout, FieldMappingOverwrite, FieldMapping, FieldValues, LuaCallback FROM AppConfiguration WHERE id=?");
-      sql.append(id);
+      std::string sql = "SELECT Id, Enable, Type, Delay, Url, Authentication, Method, Timeout, FieldMappingOverwrite, FieldMapping, FieldValues, LuaCallback FROM AppConfiguration WHERE id=?";
+      rqlite::QueryResponse queryResp = rqliteClient_->querySingle(sql, id);
 
-      Json::Value bodyRequest = Json::arrayValue;
-      bodyRequest.append(sql);
-
-      client_.SetUrl(this->url_ + "/db/query");
-      client_.SetMethod(OrthancPluginHttpMethod_Post);
-      client_.SetBody(bodyRequest.toStyledString());
-      Json::Value answerBody;
-      OrthancPlugins::HttpClient::HttpHeaders answerHeaders;
-      client_.Execute(answerHeaders, answerBody);
-      client_.SetTimeout(this->timeout_);
-      if (answerBody.isMember("results"))
+      for (const auto& result : queryResp.results)
       {
-        auto& results = answerBody["results"];
-        if (results.isArray() && results.size() > 0)
+        for (const auto& row : result.values) 
         {
-          if (!results[0].isMember("error"))
+          appConfig["Id"] = row[0];
+          if (!row[1].isNull())
           {
-            for (const auto& value : answerBody["results"][0]["values"])
-            {
-              appConfig["Id"] = value[0];
-              if (!value[1].isNull())
-              {
-                appConfig["Enable"] = value[1].asString() == "true";
-              }
-              else
-              {
-                appConfig["Enable"] = false;
-              }
-              appConfig["Type"] = value[2];
-              appConfig["Delay"] = value[3];
-              appConfig["Url"] = value[4];
-              appConfig["Authentication"] = value[5];
-              appConfig["Method"] = value[6];
-              appConfig["Timeout"] = value[7];
-              if (!value[8].isNull())
-              {
-                appConfig["FieldMappingOverwrite"] = value[8].asString() == "true";
-              }
-              else
-              {
-                appConfig["FieldMappingOverwrite"] = false;
-              }
-
-              if (!value[9].isNull() && !value[9].empty() && !value[9].asString().empty())
-              {
-                Orthanc::Toolbox::ReadJson(appConfig["FieldMapping"], value[9].asString());
-              }
-
-              if (!value[10].isNull() && !value[10].empty() && !value[10].asString().empty())
-              {
-                Orthanc::Toolbox::ReadJson(appConfig["FieldValues"], value[10].asString());
-              }
-              
-              appConfig["LuaCallback"] = value[11];
-            }
+            appConfig["Enable"] = row[1].asString() == "true";
           }
+          else
+          {
+            appConfig["Enable"] = false;
+          }
+          appConfig["Type"] = row[2];
+          appConfig["Delay"] = row[3];
+          appConfig["Url"] = row[4];
+          appConfig["Authentication"] = row[5];
+          appConfig["Method"] = row[6];
+          appConfig["Timeout"] = row[7];
+          if (!row[8].isNull())
+          {
+            appConfig["FieldMappingOverwrite"] = row[8].asString() == "true";
+          }
+          else
+          {
+            appConfig["FieldMappingOverwrite"] = false;
+          }
+          
+          if (!row[9].isNull() && !row[9].empty() && !row[9].asString().empty())
+          {
+            Orthanc::Toolbox::ReadJson(appConfig["FieldMapping"], row[9].asString());
+          }
+
+          if (!row[10].isNull() && !row[10].empty() && !row[10].asString().empty())
+          {
+            Orthanc::Toolbox::ReadJson(appConfig["FieldValues"], row[10].asString());
+          }
+
+          appConfig["LuaCallback"] = row[11];
         }
       }
     }
@@ -284,35 +262,8 @@ namespace Saola
 
     try 
     {
-      Json::Value innerSQL = Json::arrayValue;
-      innerSQL.append("INSERT INTO AppConfiguration (Id, Enable, Type, Delay, Url, Authentication, Method, Timeout, FieldMappingOverwrite, FieldMapping, FieldValues, LuaCallback) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-      innerSQL.append(id);
-      innerSQL.append(enable);
-      innerSQL.append(type);
-      innerSQL.append(delay);
-      innerSQL.append(url);
-      innerSQL.append(authentication);
-      innerSQL.append(method);
-      innerSQL.append(timeout);
-      innerSQL.append(fieldMappingOverwrite);
-      innerSQL.append(fieldMapping);
-      innerSQL.append(fieldValues);
-      innerSQL.append(luaCallback);
-
-      Json::Value requestBody = Json::arrayValue;
-      requestBody.append(innerSQL);
-
-      client_.SetUrl(this->url_ + "/db/execute");
-      client_.SetMethod(OrthancPluginHttpMethod_Post);
-      client_.SetTimeout(this->timeout_);
-
-      client_.AddHeader("Content-Type", "application/json");
-      client_.SetBody(requestBody.toStyledString());
-
-
-      Json::Value answerBody;
-      OrthancPlugins::HttpClient::HttpHeaders answerHeaders;
-      client_.Execute(answerHeaders, answerBody);
+      std::string sql = "INSERT INTO AppConfiguration (Id, Enable, Type, Delay, Url, Authentication, Method, Timeout, FieldMappingOverwrite, FieldMapping, FieldValues, LuaCallback) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"; 
+      rqlite::ExecuteResponse insertResp = rqliteClient_->executeSingle(sql, id, enable, type, delay, url, authentication, method, timeout, fieldMappingOverwrite, fieldMapping, fieldValues, luaCallback);
     }
     catch (Orthanc::OrthancException& e)
     {
@@ -326,31 +277,9 @@ namespace Saola
 
     try 
     {
-      Json::Value sql = Json::arrayValue;
-      sql.append("DELETE FROM AppConfiguration WHERE id=?");
-      sql.append(id);
-
-      Json::Value bodyRequest = Json::arrayValue;
-      bodyRequest.append(sql);
-
-      client_.SetUrl(this->url_ + "/db/execute");
-      client_.SetMethod(OrthancPluginHttpMethod_Post);
-      client_.SetTimeout(this->timeout_);
-      client_.SetBody(bodyRequest.toStyledString());
-      Json::Value answerBody;
-      OrthancPlugins::HttpClient::HttpHeaders answerHeaders;
-      client_.Execute(answerHeaders, answerBody);
-      if (answerBody.isMember("results"))
-      {
-        auto& results = answerBody["results"];
-        if (results.isArray() && results.size() > 0)
-        {
-          if (!results[0].isMember("error"))
-          {
-            return true;
-          }
-        }
-      }
+      std::string sql = "DELETE FROM AppConfiguration WHERE id=?";
+      rqlite::ExecuteResponse deleteResp = rqliteClient_->executeSingle(sql, id);
+      return !deleteResp.hasError();
     }
     catch (Orthanc::OrthancException& e)
     {
