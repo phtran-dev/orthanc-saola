@@ -148,8 +148,6 @@ void SaolaConfiguration::ApplyConfigurations(const Json::Value &appConfigs, bool
       continue;
     }
 
-    Saola::AppConfigDatabase::Instance().SaveAppConfig(appConfig);
-
     std::string id = appConfig["Id"].asString();
     auto appIT = this->apps_.find(id);
     if (appIT != this->apps_.end())

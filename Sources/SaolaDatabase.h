@@ -85,8 +85,6 @@ public:
 
   bool DeleteEventByIds(const std::list<int64_t>& ids);
 
-  bool DeleteEventByIds(const std::string& ids);
-
   bool UpdateEvent(const StableEventDTOUpdate& obj);
 
   bool ResetEvents(const std::list<int64_t>& ids);
@@ -94,8 +92,6 @@ public:
   bool GetById(int64_t id, StableEventDTOGet& result);
 
   bool GetByIds(const std::list<int64_t>& ids, std::list<StableEventDTOGet>& results);
-
-  bool GetByIds(const std::string& ids, std::list<StableEventDTOGet>& results);
 
   void FindAll(const Pagination& page, std::list<StableEventDTOGet>& results);
 

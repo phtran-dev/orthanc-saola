@@ -19,6 +19,8 @@
 
 #include <boost/algorithm/string/join.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/algorithm/string.hpp>
+
 
 #include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
@@ -260,8 +262,19 @@ static void GetStableEventByIds(OrthancPluginRestOutput *output,
   }
 
   std::string event_ids = request->groups[0];
+
+  // Split the string by commas
+  std::vector<std::string> idStrs;
+  boost::split(idStrs, request->groups[0], boost::is_any_of(","));
+
+  std::list<int64_t> ids;
+  for (const auto& val : idStrs)
+  {
+    ids.push_back(boost::lexical_cast<int64_t>( val.c_str()));
+  }
+
   std::list<StableEventDTOGet> events;
-  SaolaDatabase::Instance().GetByIds(event_ids, events);
+  SaolaDatabase::Instance().GetByIds(ids, events);
 
   Json::Value answer = Json::arrayValue;
   for (const auto &event : events)
