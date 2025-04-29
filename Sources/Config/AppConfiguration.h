@@ -97,8 +97,10 @@ struct AppConfiguration
       this->fieldMapping_["patientId"] = PatientID;
       this->fieldMapping_["patientName"] = PatientName;
       this->fieldMapping_["gender"] = PatientSex;
+      this->fieldMapping_["patientSex"] = PatientSex;
       this->fieldMapping_["age"] = PatientAge;
       this->fieldMapping_["birthDate"] = PatientBirthDate;
+      this->fieldMapping_["patientBirthDate"] = PatientBirthDate;
       this->fieldMapping_["bodyPartExamined"] = BodyPartExamined;
       this->fieldMapping_["description"] = StudyDescription;
       this->fieldMapping_["institutionName"] = InstitutionName;
