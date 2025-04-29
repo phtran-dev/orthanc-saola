@@ -10,6 +10,9 @@ constexpr const char *IT_SourceIpAddress = "SourceIpAddress";
 constexpr const char *IT_SourceApplicationEntityTitle = "SourceApplicationEntityTitle";
 constexpr const char *IT_SourceHospitalIdentifier = "SourceHospitalIdentifier";
 
+#define MainDicomTags                 "MainDicomTags"
+#define Instances                     "Instances"
+
 #define RemoteAET                     "RemoteAET"
 #define RemoteIP                      "RemoteIP"
 #define AccessionNumber               "AccessionNumber"
@@ -26,7 +29,6 @@ constexpr const char *IT_SourceHospitalIdentifier = "SourceHospitalIdentifier";
 #define StudyInstanceUID              "StudyInstanceUID"
 #define ManufacturerModelName         "ManufacturerModelName"
 #define Modality                      "Modality"
-#define CountInstances                "CountInstances"
 
 #define OperatorsName                 "OperatorsName"
 #define ReferringPhysicianName        "ReferringPhysicianName"

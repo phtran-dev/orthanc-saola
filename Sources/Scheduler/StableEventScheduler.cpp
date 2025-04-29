@@ -71,10 +71,31 @@ static void GetMainDicomTags(const std::string &resourceId, const Orthanc::Resou
   OrthancPlugins::RestApiGet(studyStatistics, "/studies/" + studyId + "/statistics", false);
   OrthancPlugins::RestApiGet(studyMetadata, "/studies/" + studyId, false);
 
-  if (storeStatistics.empty() || studyStatistics.empty() || studyMetadata.empty())
+  if (storeStatistics.empty())
   {
+    LOG(ERROR) << "[GetMainDicomTags] storeStatistics EMPTY for resourceType " << resourceType << ", resourceId " << resourceId;
+  }
+  else
+  {
+    mainDicomTags[TotalDiskSizeMB] = storeStatistics[TotalDiskSizeMB];
+    mainDicomTags[CountStudies] = storeStatistics[CountStudies];
+  }
+
+  if (studyStatistics.empty())
+  {
+    LOG(ERROR) << "[GetMainDicomTags] studyStatistics EMPTY for resourceType " << resourceType << ", resourceId " << resourceId;
+  }
+  else
+  {
+    mainDicomTags[StudySizeMB] = studyStatistics[DicomDiskSizeMB];
+  }
+
+  if (studyMetadata.empty())
+  {
+    LOG(ERROR) << "[GetMainDicomTags] studyMetadata EMPTY for resourceType " << resourceType << ", resourceId " << resourceId;
     return;
   }
+
 
   // Find find the best Series
   std::set<std::string> bodyPartExamineds;
@@ -82,34 +103,41 @@ static void GetMainDicomTags(const std::string &resourceId, const Orthanc::Resou
   std::string nonSRInstanceId, iid;
 
   mainDicomTags[Series] = Json::arrayValue;
+  int countIntances = 0;
 
-  for (const auto &seriesId : studyMetadata["Series"])
+  for (const auto &seriesId : studyMetadata[Series])
   {
     Json::Value seriesMetadata;
     OrthancPlugins::RestApiGet(seriesMetadata, "/series/" + std::string(seriesId.asString()), false);
-    seriesMetadata["MainDicomTags"][Series_NumOfImages] = seriesMetadata["Instances"].size();
+    seriesMetadata[MainDicomTags][Series_NumOfImages] = seriesMetadata[Instances].size();
 
-    mainDicomTags[Series].append(seriesMetadata["MainDicomTags"]);
-
-    if (seriesMetadata["MainDicomTags"].isMember("BodyPartExamined"))
+    if (seriesMetadata.isMember(Instances))
     {
-      const auto &bodyPartExamined = seriesMetadata["MainDicomTags"]["BodyPartExamined"];
+      countIntances += seriesMetadata[Instances].size(); 
+    }
+
+    mainDicomTags[Series].append(seriesMetadata[MainDicomTags]);
+
+    if (seriesMetadata[MainDicomTags].isMember(BodyPartExamined))
+    {
+      const auto &bodyPartExamined = seriesMetadata[MainDicomTags][BodyPartExamined];
       if (!bodyPartExamined.isNull() && !bodyPartExamined.empty())
       {
-        const std::string &str = bodyPartExamined.asString();
-        if (str != "Null")
+        std::string str;
+        Orthanc::Toolbox::ToUpperCase(str, bodyPartExamined.asString());
+        if (str != "NULL")
         {
           bodyPartExamineds.insert(str);
         }
       }
     }
-    std::string modality = seriesMetadata["MainDicomTags"]["Modality"].asString();
+    std::string modality = seriesMetadata[MainDicomTags][Modality].asString();
     std::transform(modality.begin(), modality.end(), modality.begin(), ::toupper);
     modalitiesInStudy.insert(modality);
-    iid = seriesMetadata["Instances"][0].asString();
+    iid = seriesMetadata[Instances][0].asString();
     if (modality != "SR")
     {
-      nonSRInstanceId = seriesMetadata["Instances"][0].asString();
+      nonSRInstanceId = seriesMetadata[Instances][0].asString();
     }
   }
 
@@ -119,35 +147,40 @@ static void GetMainDicomTags(const std::string &resourceId, const Orthanc::Resou
     nonSRInstanceId = iid;
   }
 
+  mainDicomTags[CountSeries] = studyMetadata[Series].size();
+  mainDicomTags[CountInstances] = countIntances;
+  mainDicomTags[NumberOfStudyRelatedSeries] = studyMetadata[Series].size();
+  mainDicomTags[NumberOfStudyRelatedInstances] = countIntances;
+
   Json::Value instanceMetadata, instanceTags;
   OrthancPlugins::RestApiGet(instanceMetadata, "/instances/" + nonSRInstanceId + "/metadata?expand", false); // From 1.97 version
   OrthancPlugins::RestApiGet(instanceTags, "/instances/" + std::string(nonSRInstanceId) + "/simplified-tags", false);
-  mainDicomTags["RemoteAET"] = instanceMetadata["RemoteAET"];
-  mainDicomTags["RemoteIP"] = instanceMetadata["RemoteIP"];
+  mainDicomTags[RemoteAET] = instanceMetadata[RemoteAET];
+  mainDicomTags[RemoteIP] = instanceMetadata[RemoteIP];
 
   // Try to get value from embedded Itech private tags
-  if (mainDicomTags["RemoteAET"].isNull() || mainDicomTags["RemoteAET"].empty() || mainDicomTags["RemoteAET"].asString().empty() ||
-      mainDicomTags["RemoteIP"].isNull() || mainDicomTags["RemoteIP"].empty() || mainDicomTags["RemoteIP"].asString().empty())
+  if (mainDicomTags[RemoteAET].isNull() || mainDicomTags[RemoteAET].empty() || mainDicomTags[RemoteAET].asString().empty() ||
+      mainDicomTags[RemoteIP].isNull() || mainDicomTags[RemoteIP].empty() || mainDicomTags[RemoteIP].asString().empty())
   {
-    if (mainDicomTags["RemoteAET"].isNull() || mainDicomTags["RemoteAET"].empty() || mainDicomTags["RemoteAET"].asString().empty())
+    if (mainDicomTags[RemoteAET].isNull() || mainDicomTags[RemoteAET].empty() || mainDicomTags[RemoteAET].asString().empty())
     {
       if (!instanceTags[IT_SourceApplicationEntityTitle].empty())
       {
-        mainDicomTags["RemoteAET"] = instanceTags[IT_SourceApplicationEntityTitle];
+        mainDicomTags[RemoteAET] = instanceTags[IT_SourceApplicationEntityTitle];
       }
     }
-    if (mainDicomTags["RemoteIP"].isNull() || mainDicomTags["RemoteIP"].empty() || mainDicomTags["RemoteAET"].asString().empty())
+    if (mainDicomTags[RemoteIP].isNull() || mainDicomTags[RemoteIP].empty() || mainDicomTags[RemoteIP].asString().empty())
     {
       if (!instanceTags[IT_SourceIpAddress].empty())
-        mainDicomTags["RemoteIP"] = instanceTags[IT_SourceIpAddress];
+        mainDicomTags[RemoteIP] = instanceTags[IT_SourceIpAddress];
     }
   }
 
-  mainDicomTags["CountSeries"] = studyStatistics["CountSeries"];
-  mainDicomTags["CountInstances"] = studyStatistics["CountInstances"];
+
+
   if (!bodyPartExamineds.empty())
   {
-    mainDicomTags["BodyPartExamined"] = boost::algorithm::join(bodyPartExamineds, ",");
+    mainDicomTags[BodyPartExamined] = boost::algorithm::join(bodyPartExamineds, ",");
   }
   mainDicomTags[AccessionNumber] = instanceTags[AccessionNumber];
   mainDicomTags[StudyInstanceUID] = instanceTags[StudyInstanceUID];
@@ -171,20 +204,12 @@ static void GetMainDicomTags(const std::string &resourceId, const Orthanc::Resou
   mainDicomTags[PatientName] = instanceTags[PatientName];
   mainDicomTags[PatientAge] = instanceTags[PatientAge];
 
-  mainDicomTags[TotalDiskSizeMB] = storeStatistics[TotalDiskSizeMB];
-  mainDicomTags[CountStudies] = storeStatistics[CountStudies];
-  mainDicomTags[CountSeries] = studyStatistics[CountSeries];
-  mainDicomTags[CountInstances] = studyStatistics[CountInstances];
-  mainDicomTags[StudySizeMB] = studyStatistics[DicomDiskSizeMB];
-
   mainDicomTags[ModalitiesInStudy] = Json::arrayValue;
   for (const auto &modality : modalitiesInStudy)
   {
     mainDicomTags[ModalitiesInStudy].append(modality);
   }
 
-  mainDicomTags[NumberOfStudyRelatedSeries] = studyStatistics[CountSeries];
-  mainDicomTags[NumberOfStudyRelatedInstances] = studyStatistics[CountInstances];
   mainDicomTags["stable"] = true;
 }
 
