@@ -157,7 +157,7 @@ bool SaolaDatabase::GetByIds(const std::list<int64_t> &ids, std::list<StableEven
     placeholders += "?";
   }
   query += placeholders + ")";
-  LOG(INFO) << "SaolaDatabase::GetByIds sql=" << query;
+  // LOG(INFO) << "SaolaDatabase::GetByIds sql=" << query;
   
   Orthanc::SQLite::Statement statement(db_, query);
   
@@ -249,7 +249,7 @@ void SaolaDatabase::FindAll(const Pagination &page, std::list<StableEventDTOGet>
                     "delay_sec, retry, failed_reason, last_updated_time, creation_time "
                     "FROM StableEventQueues ORDER BY " + sortBy + " LIMIT ? OFFSET ?";
 
-  LOG(INFO) << "SaolaDatabase::FindAll sql=" << sql << ", limit=" << page.limit_ << ", offset=" << page.offset_;
+  // LOG(INFO) << "SaolaDatabase::FindAll sql=" << sql << ", limit=" << page.limit_ << ", offset=" << page.offset_;
 
   Orthanc::SQLite::Statement statement(db_, sql);
   
@@ -379,7 +379,7 @@ void SaolaDatabase::FindByAppTypeInRetryLessThan(const std::list<std::string> &a
   
   // Complete the query with placeholders for retry and limit
   std::string sql = baseQuery + inClause + " AND retry <= ? ORDER BY retry ASC LIMIT ?";
-  LOG(INFO) << "SaolaDatabase::FindByAppTypeInRetryLessThan sql=" << sql;
+  // LOG(INFO) << "SaolaDatabase::FindByAppTypeInRetryLessThan sql=" << sql;
   
   // Prepare the statement
   Orthanc::SQLite::Statement statement(db_, sql);
