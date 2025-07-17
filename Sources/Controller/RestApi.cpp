@@ -627,39 +627,156 @@ void DeleteStudyResource(OrthancPluginRestOutput *output,
     return OrthancPluginSendMethodNotAllowed(context, output, "PUT");
   }
 
-  Json::Value findData, resourceIds;
-  findData["Level"] = "Study";
-  findData["Query"]["StudyInstanceUID"] = request->groups[0];
+  std::string studyInstanceUID = request->groups[0];
 
-  OrthancPlugins::RestApiPost(resourceIds, "/tools/find", findData, false);
-
-  if (resourceIds.isNull() || resourceIds.empty())
+  Json::Value studyResources;
   {
-    OrthancPlugins::LogInfo("[DeleteStudyResource] Cannot find StudyInstanceUID " + std::string(request->groups[0]));
-    return OrthancPluginSendHttpStatusCode(context, output, 404);
+    Json::Value findData;
+    findData["Level"] = "Study";
+    findData["Query"]["StudyInstanceUID"] = studyInstanceUID;
+    findData["Expand"] = true;
+
+    OrthancPlugins::RestApiPost(studyResources, "/tools/find", findData, false);
+    if (studyResources.isNull() || studyResources.empty())
+    {
+      OrthancPlugins::LogInfo("[DeleteStudyResource] Cannot find StudyInstanceUID " + std::string(request->groups[0]));
+      return OrthancPluginSendHttpStatusCode(context, output, 404);
+    }
   }
 
-  Json::Value body;
-  OrthancPlugins::ReadJson(body, request->body, request->bodySize);
+  Json::Value requestBody;
 
-  bool success = true;
-  for (const auto &resourceId : resourceIds)
+  if (request->bodySize > 0)
   {
-    OrthancPlugins::LogInfo("[DeleteStudyResource] Found resource id " + resourceId.asString() +
-                            " associated with StudyInstanceUID " + request->groups[0]);
-    success &= OrthancPlugins::RestApiDelete("/studies/" + resourceId.asString(), false);
+    // Prevent case "Cannot parse JSON: * Line 1, Column 1"
+    OrthancPlugins::ReadJson(requestBody, request->body, request->bodySize);
   }
 
-  OrthancPlugins::LogInfo(
-      "[DeleteStudyResource] Deleted studyInstanceUID " + std::string(request->groups[0]));
-  Json::Value storeStatistics, storeageUpdate;
-  OrthancPlugins::RestApiGet(storeStatistics, "/statistics", false);
-  storeageUpdate["size"] = storeStatistics["TotalDiskSizeMB"];
-  storeageUpdate["numOfStudies"] = storeStatistics["CountStudies"];
+  if (requestBody.isNull() || requestBody.empty())
+  {
+    // Delete Studies
+    bool success = true;
+    for (const auto &resource : studyResources)
+    {
+      OrthancPlugins::LogInfo("Deleting studyInstanceUID " + studyInstanceUID + " from resource " + resource["ID"].asString());
+      success &= OrthancPlugins::RestApiDelete("/studies/" + resource["ID"].asString(), false);
+    }
 
-  std::string answer = storeageUpdate.toStyledString();
-  OrthancPluginAnswerBuffer(context, output, answer.c_str(), answer.size(), "application/json");
+    OrthancPlugins::LogInfo("[DeleteStudyResource] Deleted studyInstanceUID " + studyInstanceUID + (success ? " OK" : " KO"));
+    return OrthancPluginSendHttpStatusCode(context, output, 200);
+  }
+
+  // Bulk delete series
+  std::set<std::string> seriesInstanceUids;
+  for (const auto &id : requestBody)
+  {
+    seriesInstanceUids.emplace(id.asString());
+  }
+
+  Json::Value deleteResourcesBody;
+  for (const auto &studyResource : studyResources)
+  {
+    Json::Value seriesResources;
+    OrthancPlugins::RestApiGet(seriesResources, "/studies/" + studyResource["ID"].asString() + "/series", false);
+    for (const auto& series : seriesResources)
+    {
+      if (seriesInstanceUids.find(series["MainDicomTags"]["SeriesInstanceUID"].asString()) != seriesInstanceUids.end())
+      {
+        deleteResourcesBody["Resources"].append(series["ID"].asString());
+      }
+    }
+  }
+
+  if (!deleteResourcesBody.empty())
+  {
+    OrthancPlugins::LogInfo("Deleting seriesInstanceUIDs " + boost::join(seriesInstanceUids, ",") + " from resource " + deleteResourcesBody["Resources"].toStyledString());
+    Json::Value res;
+    OrthancPlugins::RestApiPost(res, "/tools/bulk-delete", deleteResourcesBody, false);
+  }
+
+  return OrthancPluginSendHttpStatusCode(context, output, 200);
 }
+
+
+void DeleteSeriesResource(OrthancPluginRestOutput *output,
+                          const char *url,
+                          const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+
+  if (request->method != OrthancPluginHttpMethod_Put)
+  {
+    return OrthancPluginSendMethodNotAllowed(context, output, "PUT");
+  }
+
+  std::string studyInstanceUID = request->groups[0];
+  std::string seriesInstanceUID = request->groups[1];
+
+  Json::Value seriesResource;
+  {
+    Json::Value findData, seriesResources;
+    findData["Level"] = "Series";
+    findData["Query"]["SeriesInstanceUID"] = seriesInstanceUID;
+    findData["Expand"] = true;
+
+    OrthancPlugins::RestApiPost(seriesResources, "/tools/find", findData, false);
+
+    if (seriesResources.isNull() || seriesResources.empty())
+    {
+      OrthancPlugins::LogInfo("[DeleteSeriesResource] Cannot find SeriesInstanceUID " + seriesInstanceUID);
+      return OrthancPluginSendHttpStatusCode(context, output, 404);
+    }
+
+    for (const auto& resource : seriesResources)
+    {
+      Json::Value studyResource;
+      OrthancPlugins::RestApiGet(studyResource, "/studies/" + resource["ParentStudy"].asString(), false);
+      if (studyResource["MainDicomTags"]["StudyInstanceUID"].asString() == studyInstanceUID)
+      {
+        seriesResource = resource;
+        break;
+      }
+    }
+  }
+
+  Json::Value requestBody;
+  OrthancPlugins::ReadJson(requestBody, request->body, request->bodySize);
+
+  if (requestBody.isNull() || requestBody.empty())
+  {
+    // Delete Series
+    OrthancPlugins::LogInfo("Deleting seriesInstanceUID " + seriesInstanceUID + " from resource " + seriesResource["ID"].asString());
+    OrthancPlugins::RestApiDelete("/series/" + seriesResource["ID"].asString(), false);
+    return OrthancPluginSendHttpStatusCode(context, output, 200);
+  }
+
+  // Bulk delete instances
+  std::set<std::string> sopInstanceUids;
+  for (const auto &id : requestBody)
+  {
+    sopInstanceUids.emplace(id.asString());
+  }
+
+  Json::Value instances, deleteResourcesBody;
+  OrthancPlugins::RestApiGet(instances, "/series/" + seriesResource["ID"].asString() + "/instances", false);
+  for (const auto& instance : instances)
+  {
+    if (sopInstanceUids.find(instance["MainDicomTags"]["SOPInstanceUID"].asString()) != sopInstanceUids.end())
+    {
+      deleteResourcesBody["Resources"].append(instance["ID"].asString());
+    }
+  }
+
+  if (!deleteResourcesBody.empty())
+  {
+    OrthancPlugins::LogInfo("Deleting sopInstanceUIDs " + boost::join(sopInstanceUids, ",") + " from resource " + deleteResourcesBody["Resources"].toStyledString());
+    Json::Value res;
+    OrthancPlugins::RestApiPost(res, "/tools/bulk-delete", deleteResourcesBody, false);
+  }
+
+  return OrthancPluginSendHttpStatusCode(context, output, 200);
+}
+
 
 void DicomCStoreStudy(OrthancPluginRestOutput *output,
                       const char *url,
@@ -961,6 +1078,7 @@ void RegisterRestEndpoint()
   OrthancPlugins::RegisterRestCallback<UpdateTransferJobs>(SaolaConfiguration::Instance().GetRoot() + "transfer-jobs/([^/]*)/([^/]*)", true);
   OrthancPlugins::RegisterRestCallback<ExportSingleResource>(SaolaConfiguration::Instance().GetRoot() + "export", true);
   OrthancPlugins::RegisterRestCallback<DeleteStudyResource>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/delete", true);    // For compatibility
+  OrthancPlugins::RegisterRestCallback<DeleteSeriesResource>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/series/([^/]*)/delete", true);
   OrthancPlugins::RegisterRestCallback<DicomCStoreStudy>(SaolaConfiguration::Instance().GetRoot() + "modalities/([^/]*)/store", true);     // For compatibility
   OrthancPlugins::RegisterRestCallback<GetStudyStatistics>(SaolaConfiguration::Instance().GetRoot() + "studies/([^/]*)/statistics", true); // For compatibility
   OrthancPlugins::RegisterRestCallback<GetSeriesStatistics>(SaolaConfiguration::Instance().GetRoot() + "series/([^/]*)/statistics", true); // For compatibility
