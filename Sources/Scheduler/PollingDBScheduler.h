@@ -1,6 +1,8 @@
 #pragma once
 
 #include <thread>
+#include <boost/thread.hpp>
+
 #include <boost/noncopyable.hpp>
 #include <map>
 
@@ -14,7 +16,7 @@ private:
     State_Done
   };
 
-  std::thread *m_worker;
+  boost::thread *m_worker;
 
   State m_state;
 
