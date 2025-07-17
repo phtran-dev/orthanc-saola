@@ -1,8 +1,8 @@
 #pragma once
 
-#include "TimeUtil.h"
+#include "../TimeUtil.h"
 
-#include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+#include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 #include <string>
 #include <sstream>

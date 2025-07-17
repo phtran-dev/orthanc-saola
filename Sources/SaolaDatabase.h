@@ -1,11 +1,11 @@
 #pragma once
 
-#include "StableEventDTOCreate.h"
-#include "StableEventDTOUpdate.h"
-#include "StableEventDTOGet.h"
+#include "DTO/StableEventDTOCreate.h"
+#include "DTO/StableEventDTOUpdate.h"
+#include "DTO/StableEventDTOGet.h"
 
-#include "TransferJobDTOCreate.h"
-#include "TransferJobDTOGet.h"
+#include "DTO/TransferJobDTOCreate.h"
+#include "DTO/TransferJobDTOGet.h"
 
 #include "FailedJobFilter.h"
 
@@ -85,8 +85,6 @@ public:
 
   bool DeleteEventByIds(const std::list<int64_t>& ids);
 
-  bool DeleteEventByIds(const std::string& ids);
-
   bool UpdateEvent(const StableEventDTOUpdate& obj);
 
   bool ResetEvents(const std::list<int64_t>& ids);
@@ -95,13 +93,11 @@ public:
 
   bool GetByIds(const std::list<int64_t>& ids, std::list<StableEventDTOGet>& results);
 
-  bool GetByIds(const std::string& ids, std::list<StableEventDTOGet>& results);
-
   void FindAll(const Pagination& page, std::list<StableEventDTOGet>& results);
 
   void FindByRetryLessThan(int retry, std::list<StableEventDTOGet>& results);
 
-  void FindByAppTypeInRetryLessThan(const std::list<std::string>& appType, bool included, int retry, std::list<StableEventDTOGet>& results);
+  void FindByAppTypeInRetryLessThan(const std::list<std::string>& appType, bool included, int retry, int limit, std::list<StableEventDTOGet>& results);
 
   void SaveTransferJob(const TransferJobDTOCreate& dto, TransferJobDTOGet& result);
 

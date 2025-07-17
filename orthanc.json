@@ -100,6 +100,9 @@
     "ExpirationDuration": 1,
     "Root": "/saola/",
     "MaxRetry": 1,
+    "PollingDBInSeconds": 60, // Default 30
+    "RQLite.DataSource.Url" : "http://localhost:4001",
+    "RQLite.DataSource.Timeout" : 1, // 1 second
     "Apps" : [
       {
         "Id": "Ris1",
@@ -109,7 +112,7 @@
         "Delay": 60, // Delay in seconds
         "Url": "http://storeserver:9001/secured/ws/rest/v1/async/location",
         "Authentication": "Basic b3J0aGFuYzpvcnRoYW5j",
-        "FieldMapping": ["aeTitle:RemoteAET", "ipAddress:RemoteIP"]
+        "FieldMapping": [{"aeTitle": "RemoteAET"}, {"ipAddress": "RemoteIP"}]
       },
       {
           "Id": "Transfer1",
@@ -148,7 +151,7 @@
         "Type": "StoreServer",
         //"FieldValues": [{"storeId": "ORTHANC-10"}],
         "Url": "http://storeserver:9001/secured/ws/rest/v1/async/location",
-        "FieldMapping": ["aeTitle:RemoteAET", "ipAddress:RemoteIP"]
+        "FieldMapping": [{"aeTitle" : "RemoteAET"}, {"ipAddress" : "RemoteIP"}]
       }
     ]
   },

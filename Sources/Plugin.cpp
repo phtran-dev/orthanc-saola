@@ -17,16 +17,17 @@
  **/
 
 #include "SaolaDatabase.h"
-#include "StableEventScheduler.h"
-#include "RemoveFileScheduler.h"
-#include "StableEventDTOCreate.h"
-#include "MainDicomTags.h"
-#include "SaolaConfiguration.h"
+#include "Scheduler/StableEventScheduler.h"
+#include "Scheduler/RemoveFileScheduler.h"
+#include "Scheduler/PollingDBScheduler.h"
+#include "DTO/StableEventDTOCreate.h"
+#include "DTO/MainDicomTags.h"
+#include "Config/SaolaConfiguration.h"
 #include "Constants.h"
-#include "RestApi.h"
-#include "JobHandler.h"
-#include "ExporterJob.h"
-#include "InMemoryJobCache.h"
+#include "Controller/RestApi.h"
+#include "Job/JobHandler.h"
+#include "Job/ExporterJob.h"
+#include "Cache/InMemoryJobCache.h"
 
 #include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
@@ -53,11 +54,14 @@ static OrthancPluginErrorCode OnChangeCallback(OrthancPluginChangeType changeTyp
       RemoveFileScheduler::Instance().Start();
     }
 
+    PollingDBScheduler::Instance().Start();
+
     break;
   }
 
   case OrthancPluginChangeType_OrthancStopped:
     StableEventScheduler::Instance().Stop();
+    PollingDBScheduler::Instance().Stop();
     if (SaolaConfiguration::Instance().IsEnableRemoveFile())
     {
       RemoveFileScheduler::Instance().Stop();
@@ -111,14 +115,6 @@ extern "C"
     try
     {
       OrthancPlugins::OrthancConfiguration configuration;
-      // std::string folder = configuration.GetStringValue(STORAGE_DIRECTORY, ORTHANC_STORAGE);
-
-      // Orthanc::SystemToolbox::MakeDirectory(folder);
-      // std::string path = (boost::filesystem::path(folder) / "saola-plugin.db").string();
-
-      // LOG(WARNING) << "Path to the database of the Saola plugin: " << path;
-      // SaolaDatabase::Instance().Open(path);
-
       LOG(WARNING) << "Path to the database of the Saola plugin: " << SaolaConfiguration::Instance().GetDbPath();
       boost::filesystem::path dbPath = SaolaConfiguration::Instance().GetDbPath();
       Orthanc::SystemToolbox::MakeDirectory(dbPath.parent_path().string());

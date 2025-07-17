@@ -1,6 +1,6 @@
 #pragma once
 
-#include "StableEventDTOGet.h"
+#include "../DTO/StableEventDTOGet.h"
 
 #include <thread>
 #include <boost/noncopyable.hpp>

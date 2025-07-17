@@ -1,17 +1,18 @@
 #include "StableEventScheduler.h"
-#include "SaolaDatabase.h"
-#include "TimeUtil.h"
+#include "../SaolaDatabase.h"
+#include "../TimeUtil.h"
 
-#include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+#include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
-#include "TransferJobDTOCreate.h"
-#include "StableEventDTOCreate.h"
-#include "StableEventDTOUpdate.h"
-#include "MainDicomTags.h"
-#include "SaolaConfiguration.h"
-#include "Constants.h"
+#include "../Cache/InMemoryJobCache.h"
+#include "../DTO/TransferJobDTOCreate.h"
+#include "../DTO/StableEventDTOCreate.h"
+#include "../DTO/StableEventDTOUpdate.h"
+#include "../DTO/MainDicomTags.h"
+#include "../Config/SaolaConfiguration.h"
+#include "../Constants.h"
 
-#include "Notification.h"
+#include "../Notification/Notification.h"
 
 #include <Logging.h>
 #include <Enumerations.h>
@@ -70,10 +71,31 @@ static void GetMainDicomTags(const std::string &resourceId, const Orthanc::Resou
   OrthancPlugins::RestApiGet(studyStatistics, "/studies/" + studyId + "/statistics", false);
   OrthancPlugins::RestApiGet(studyMetadata, "/studies/" + studyId, false);
 
-  if (storeStatistics.empty() || studyStatistics.empty() || studyMetadata.empty())
+  if (storeStatistics.empty())
   {
+    LOG(ERROR) << "[GetMainDicomTags] storeStatistics EMPTY for resourceType " << resourceType << ", resourceId " << resourceId;
+  }
+  else
+  {
+    mainDicomTags[TotalDiskSizeMB] = storeStatistics[TotalDiskSizeMB];
+    mainDicomTags[CountStudies] = storeStatistics[CountStudies];
+  }
+
+  if (studyStatistics.empty())
+  {
+    LOG(ERROR) << "[GetMainDicomTags] studyStatistics EMPTY for resourceType " << resourceType << ", resourceId " << resourceId;
+  }
+  else
+  {
+    mainDicomTags[StudySizeMB] = studyStatistics[DicomDiskSizeMB];
+  }
+
+  if (studyMetadata.empty())
+  {
+    LOG(ERROR) << "[GetMainDicomTags] studyMetadata EMPTY for resourceType " << resourceType << ", resourceId " << resourceId;
     return;
   }
+
 
   // Find find the best Series
   std::set<std::string> bodyPartExamineds;
@@ -81,34 +103,41 @@ static void GetMainDicomTags(const std::string &resourceId, const Orthanc::Resou
   std::string nonSRInstanceId, iid;
 
   mainDicomTags[Series] = Json::arrayValue;
+  int countIntances = 0;
 
-  for (const auto &seriesId : studyMetadata["Series"])
+  for (const auto &seriesId : studyMetadata[Series])
   {
     Json::Value seriesMetadata;
     OrthancPlugins::RestApiGet(seriesMetadata, "/series/" + std::string(seriesId.asString()), false);
-    seriesMetadata["MainDicomTags"][Series_NumOfImages] = seriesMetadata["Instances"].size();
+    seriesMetadata[MainDicomTags][Series_NumOfImages] = seriesMetadata[Instances].size();
 
-    mainDicomTags[Series].append(seriesMetadata["MainDicomTags"]);
-
-    if (seriesMetadata["MainDicomTags"].isMember("BodyPartExamined"))
+    if (seriesMetadata.isMember(Instances))
     {
-      const auto &bodyPartExamined = seriesMetadata["MainDicomTags"]["BodyPartExamined"];
+      countIntances += seriesMetadata[Instances].size(); 
+    }
+
+    mainDicomTags[Series].append(seriesMetadata[MainDicomTags]);
+
+    if (seriesMetadata[MainDicomTags].isMember(BodyPartExamined))
+    {
+      const auto &bodyPartExamined = seriesMetadata[MainDicomTags][BodyPartExamined];
       if (!bodyPartExamined.isNull() && !bodyPartExamined.empty())
       {
-        const std::string &str = bodyPartExamined.asString();
-        if (str != "Null")
+        std::string str;
+        Orthanc::Toolbox::ToUpperCase(str, bodyPartExamined.asString());
+        if (str != "NULL")
         {
           bodyPartExamineds.insert(str);
         }
       }
     }
-    std::string modality = seriesMetadata["MainDicomTags"]["Modality"].asString();
+    std::string modality = seriesMetadata[MainDicomTags][Modality].asString();
     std::transform(modality.begin(), modality.end(), modality.begin(), ::toupper);
     modalitiesInStudy.insert(modality);
-    iid = seriesMetadata["Instances"][0].asString();
+    iid = seriesMetadata[Instances][0].asString();
     if (modality != "SR")
     {
-      nonSRInstanceId = seriesMetadata["Instances"][0].asString();
+      nonSRInstanceId = seriesMetadata[Instances][0].asString();
     }
   }
 
@@ -118,35 +147,40 @@ static void GetMainDicomTags(const std::string &resourceId, const Orthanc::Resou
     nonSRInstanceId = iid;
   }
 
+  mainDicomTags[CountSeries] = studyMetadata[Series].size();
+  mainDicomTags[CountInstances] = countIntances;
+  mainDicomTags[NumberOfStudyRelatedSeries] = studyMetadata[Series].size();
+  mainDicomTags[NumberOfStudyRelatedInstances] = countIntances;
+
   Json::Value instanceMetadata, instanceTags;
   OrthancPlugins::RestApiGet(instanceMetadata, "/instances/" + nonSRInstanceId + "/metadata?expand", false); // From 1.97 version
   OrthancPlugins::RestApiGet(instanceTags, "/instances/" + std::string(nonSRInstanceId) + "/simplified-tags", false);
-  mainDicomTags["RemoteAET"] = instanceMetadata["RemoteAET"];
-  mainDicomTags["RemoteIP"] = instanceMetadata["RemoteIP"];
+  mainDicomTags[RemoteAET] = instanceMetadata[RemoteAET];
+  mainDicomTags[RemoteIP] = instanceMetadata[RemoteIP];
 
   // Try to get value from embedded Itech private tags
-  if (mainDicomTags["RemoteAET"].isNull() || mainDicomTags["RemoteAET"].empty() || mainDicomTags["RemoteAET"].asString().empty() ||
-      mainDicomTags["RemoteIP"].isNull() || mainDicomTags["RemoteIP"].empty() || mainDicomTags["RemoteIP"].asString().empty())
+  if (mainDicomTags[RemoteAET].isNull() || mainDicomTags[RemoteAET].empty() || mainDicomTags[RemoteAET].asString().empty() ||
+      mainDicomTags[RemoteIP].isNull() || mainDicomTags[RemoteIP].empty() || mainDicomTags[RemoteIP].asString().empty())
   {
-    if (mainDicomTags["RemoteAET"].isNull() || mainDicomTags["RemoteAET"].empty() || mainDicomTags["RemoteAET"].asString().empty())
+    if (mainDicomTags[RemoteAET].isNull() || mainDicomTags[RemoteAET].empty() || mainDicomTags[RemoteAET].asString().empty())
     {
       if (!instanceTags[IT_SourceApplicationEntityTitle].empty())
       {
-        mainDicomTags["RemoteAET"] = instanceTags[IT_SourceApplicationEntityTitle];
+        mainDicomTags[RemoteAET] = instanceTags[IT_SourceApplicationEntityTitle];
       }
     }
-    if (mainDicomTags["RemoteIP"].isNull() || mainDicomTags["RemoteIP"].empty() || mainDicomTags["RemoteAET"].asString().empty())
+    if (mainDicomTags[RemoteIP].isNull() || mainDicomTags[RemoteIP].empty() || mainDicomTags[RemoteIP].asString().empty())
     {
       if (!instanceTags[IT_SourceIpAddress].empty())
-        mainDicomTags["RemoteIP"] = instanceTags[IT_SourceIpAddress];
+        mainDicomTags[RemoteIP] = instanceTags[IT_SourceIpAddress];
     }
   }
 
-  mainDicomTags["CountSeries"] = studyStatistics["CountSeries"];
-  mainDicomTags["CountInstances"] = studyStatistics["CountInstances"];
+
+
   if (!bodyPartExamineds.empty())
   {
-    mainDicomTags["BodyPartExamined"] = boost::algorithm::join(bodyPartExamineds, ",");
+    mainDicomTags[BodyPartExamined] = boost::algorithm::join(bodyPartExamineds, ",");
   }
   mainDicomTags[AccessionNumber] = instanceTags[AccessionNumber];
   mainDicomTags[StudyInstanceUID] = instanceTags[StudyInstanceUID];
@@ -170,48 +204,40 @@ static void GetMainDicomTags(const std::string &resourceId, const Orthanc::Resou
   mainDicomTags[PatientName] = instanceTags[PatientName];
   mainDicomTags[PatientAge] = instanceTags[PatientAge];
 
-  mainDicomTags[TotalDiskSizeMB] = storeStatistics[TotalDiskSizeMB];
-  mainDicomTags[CountStudies] = storeStatistics[CountStudies];
-  mainDicomTags[CountSeries] = studyStatistics[CountSeries];
-  mainDicomTags[CountInstances] = studyStatistics[CountInstances];
-  mainDicomTags[StudySizeMB] = studyStatistics[DicomDiskSizeMB];
-
   mainDicomTags[ModalitiesInStudy] = Json::arrayValue;
   for (const auto &modality : modalitiesInStudy)
   {
     mainDicomTags[ModalitiesInStudy].append(modality);
   }
 
-  mainDicomTags[NumberOfStudyRelatedSeries] = studyStatistics[CountSeries];
-  mainDicomTags[NumberOfStudyRelatedInstances] = studyStatistics[CountInstances];
   mainDicomTags["stable"] = true;
 }
 
-static void ConstructSeries(const std::map<std::string, std::string>& fieldMapping, const std::string& prefix, const Json::Value& series, Json::Value& result)
+static void ConstructSeries(const Json::Value& fieldMapping, const std::string& prefix, const Json::Value& series, Json::Value& result)
 {
   // get all value from appconfig where first is series_XXXXX
-  for (auto& m : fieldMapping)
+  for (Json::ValueConstIterator it = fieldMapping.begin(); it != fieldMapping.end(); ++it)
   {
-    if (series.isMember(m.second))
+    if (series.isMember((*it).asString()))
     {
-      auto pos = m.first.find(prefix);
+      auto pos = (it.key().asString()).find(prefix);
       if (pos != std::string::npos)
       {
-        auto key = m.first.substr(m.first.find(prefix) + prefix.length());
-        result[key] = series[m.second];
+        auto key = (it.key().asString()).substr(pos + prefix.length());
+        result[key] = series[(*it).asString()];
       }
     }
   }
 }
 
-static void FilterFieldMappingLevel(const std::string& prefix, const std::map<std::string, std::string>& source, std::map<std::string, std::string>& target)
+static void FilterFieldMappingLevel(const std::string& prefix, const Json::Value& source, Json::Value& target)
 {
-  for (auto& m : source)
+  for (Json::ValueConstIterator it = source.begin(); it != source.end(); ++it)
   {
-    if (m.first.find(prefix) != std::string::npos)
+    if (it.key().asString().find(prefix) != std::string::npos)
     {
       // Found
-      target[m.first] = source.at(m.first);
+      target[it.key().asString()] = *it;
     }
   }
 }
@@ -220,31 +246,31 @@ static void ConstructAndSendMessage(const AppConfiguration &appConfig, const Jso
 {
   Json::Value body;
   std::string seriesPrefix = Series + std::string("_");
-  for (auto &field : appConfig.fieldMapping_)
+  for (Json::ValueConstIterator it = appConfig.fieldMapping_.begin(); it != appConfig.fieldMapping_.end(); ++it)
   {
-
     // Process field "Series"
-    if (field.first == "series" && mainDicomTags.isMember(field.second))
+    if (it.key().asString() == "series" && mainDicomTags.isMember((*it).asString()))
     {
-      std::map<std::string, std::string> newMappings;
+      Json::Value newMappings = Json::objectValue;
       // Filter fields which start with "Series_"
       FilterFieldMappingLevel(seriesPrefix, appConfig.fieldMapping_, newMappings);
-
-      body[field.first] = Json::arrayValue;
-      for (auto& series : mainDicomTags[field.second])
+      body[it.key().asString()] = Json::arrayValue;
+      for (auto& series : mainDicomTags[(*it).asString()])
       {
         Json::Value val;
         ConstructSeries(newMappings, seriesPrefix, series, val);
-        body[field.first].append(val);
+        body[it.key().asString()].append(val);
       }
       continue;
     }
+
     // Process fields not starting with "Series_"
-    if (field.first.find(seriesPrefix) == std::string::npos && mainDicomTags.isMember(field.second))
+    if ((it.key().asString()).find(seriesPrefix) == std::string::npos && mainDicomTags.isMember((*it).asString()))
     {
-      body[field.first] = mainDicomTags[field.second];
+      body[it.key().asString()] = mainDicomTags[(*it).asString()];
     }
   }
+
 
   for (const auto &member : appConfig.fieldValues_.getMemberNames())
   {
@@ -253,7 +279,7 @@ static void ConstructAndSendMessage(const AppConfiguration &appConfig, const Jso
 
   std::string bodyString;
   OrthancPlugins::WriteFastJson(bodyString, body);
-  LOG(INFO) << "[ConstructAndSendMessage] Body = " << body.toStyledString();
+  LOG(INFO) << "[ConstructAndSendMessage] Body = " << bodyString;
   OrthancPlugins::HttpClient client;
   client.SetUrl(appConfig.url_);
   client.SetTimeout(appConfig.timeOut_);
@@ -335,8 +361,7 @@ static bool ProcessAsyncTask(const AppConfiguration &appConfig, StableEventDTOGe
           continue; // jobStateOk is still FALSE
         }
 
-        if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Pending) ||
-            response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Failure) ||
+        if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Failure) ||
             response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Paused) ||
             response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Retry))
         {
@@ -358,25 +383,11 @@ static bool ProcessAsyncTask(const AppConfiguration &appConfig, StableEventDTOGe
           break; // break loop, // jobStateOk is TRUE
         }
 
-        if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Running))
+        if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Running) ||
+            response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Pending))
         {
-          // @TODO Remove this hard-coded
-          LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " API /jobs/" << job.id_ << ", Response body has State=Running" << ", WAITING until it finishes. Task " << dto.id_ << " creation_time " << dto.creation_time_ << ", now " << boost::posix_time::to_iso_string(Saola::GetNow()) << ", elapsed " << Saola::Elapsed(dto.creation_time_) << " , retention " << RETENTION_EXPIRED << "(s)";
-
-          if (Saola::IsOverDue(dto.creation_time_, RETENTION_EXPIRED))
-          {
-            // Set retry to MAX since we do not want to process this task anymore
-            std::stringstream ss;
-            ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " API /jobs/" << job.id_ << " EXPIRED, Response body has State=Running" << ", WAITING until it finishes. Task " << dto.id_ << " creation_time " << dto.creation_time_ << ", now " << boost::posix_time::to_iso_string(Saola::GetNow()) << ", elapsed " << Saola::Elapsed(dto.creation_time_) << " , retention " << RETENTION_EXPIRED << "(s)";
-            dto.failed_reason_ = ss.str();
-            notification[ERROR_DETAIL] = dto.ToJsonString();
-            notification[ERROR_MESSAGE] = ss.str();
-            dto.retry_ = SaolaConfiguration::Instance().GetMaxRetry();
-          }
-          else
-          {
-            jobStateOk = true;
-          }
+          LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " API /jobs/" << job.id_ << ", Response body has State=" << response["State"].asString() << ", WAITING until it finishes. Task " << dto.id_ << " creation_time " << dto.creation_time_ << ", now " << boost::posix_time::to_iso_string(Saola::GetNow()) << ", elapsed " << Saola::Elapsed(dto.creation_time_) << " , retention " << RETENTION_EXPIRED << "(s)";
+          jobStateOk = true;
           break; // break loop, jobState is now JobState_Running
         }
       }
@@ -471,7 +482,7 @@ static bool ProcessSyncTask(const AppConfiguration &appConfig, StableEventDTOGet
   catch (Orthanc::OrthancException &e)
   {
     std::stringstream ss;
-    ss << "[ProcessSyncTask][Task-" << dto.id_ << "]" << " ERROR Orthanc::OrthancException: " << e.What();
+    ss << "[ProcessSyncTask][Task-" << dto.id_ << "]" << " ERROR Orthanc::OrthancException: e=" << e.What();
     dto.failed_reason_ = ss.str();
     notification[ERROR_DETAIL] = dto.ToJsonString();
     notification[ERROR_MESSAGE] = ss.str();
@@ -479,7 +490,7 @@ static bool ProcessSyncTask(const AppConfiguration &appConfig, StableEventDTOGet
   catch (std::exception &e)
   {
     std::stringstream ss;
-    ss << "[ProcessSyncTask][Task-" << dto.id_ << "]" << " ERROR std::exception: " << e.what();
+    ss << "[ProcessSyncTask][Task-" << dto.id_ << "]" << " ERROR std::exception: e=" << e.what();
     dto.failed_reason_ = ss.str();
     notification[ERROR_DETAIL] = dto.ToJsonString();
     notification[ERROR_MESSAGE] = ss.str();
@@ -583,20 +594,38 @@ void StableEventScheduler::Start()
     {
       LOG(TRACE) << "[StableEventScheduler::MonitorDatabase] Start monitoring Ris/StoreServer tasks ...";
       std::list<StableEventDTOGet> results;
-      SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, true, SaolaConfiguration::Instance().GetMaxRetry(), results);
+      SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, true, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), results);
       MonitorTasks(results);
-      std::this_thread::sleep_for(std::chrono::milliseconds(SaolaConfiguration::Instance().GetThrottleDelayMs()));
+      for (int i = 0; i < 10; i++)
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(SaolaConfiguration::Instance().GetThrottleDelayMs()));
+      }
     } });
 
   this->m_worker2 = new std::thread([this]()
                                     {
     while (this->m_state == State_Running)
     {
-      LOG(TRACE) << "[StableEventScheduler::MonitorDatabase] Start monitoring Transfer/Exporter tasks ...";
+      LOG(TRACE) << "[StableEventScheduler::MonitorDatabase] Start monitoring Transfer/Exporter/StoreSCU tasks ...";
       std::list<StableEventDTOGet> results;
-      SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), results);
+      if (SaolaConfiguration::Instance().EnableInMemJobCache())
+      {
+        if (InMemoryJobCache::Instance().GetSize() < SaolaConfiguration::Instance().GetInMemJobCacheLimit())
+        {
+          SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), results);
+        }
+      }
+      else
+      {
+        SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), results);
+      }
+
       MonitorTasks(results);
-      std::this_thread::sleep_for(std::chrono::milliseconds(SaolaConfiguration::Instance().GetThrottleDelayMs()));
+
+      for (int i = 0; i < 10; i++)
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(SaolaConfiguration::Instance().GetThrottleDelayMs()));
+      }
     } });
 }
 

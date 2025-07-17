@@ -1,5 +1,5 @@
 #include "ExporterJob.h"
-#include "PluginIndex.h"
+#include "../PluginIndex.h"
 #include "HierarchicalDirWriter.h"
 
 #include <Cache/SharedArchive.h>

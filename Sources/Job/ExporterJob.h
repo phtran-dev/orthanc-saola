@@ -10,7 +10,7 @@
 #include <Compression/ZipWriter.h>
 #include <TemporaryFile.h>
 
-#include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+#include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 namespace Saola
 {
@@ -50,7 +50,7 @@ namespace Saola
 
   public:
     ExporterJob(bool enableExtendedSopClass,
-              const std::string& rootDir,
+                const std::string& rootDir,
                 Orthanc::ResourceType jobLevel);
 
     virtual ~ExporterJob();

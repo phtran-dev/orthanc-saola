@@ -1,9 +1,9 @@
 #include "RemoveFileScheduler.h"
-#include "SaolaDatabase.h"
-#include "TimeUtil.h"
-#include "SaolaConfiguration.h"
+#include "../SaolaDatabase.h"
+#include "../TimeUtil.h"
+#include "../Config/SaolaConfiguration.h"
 
-#include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+#include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 #include <Logging.h>
 #include <Enumerations.h>
@@ -180,19 +180,22 @@ void RemoveFileScheduler::Start()
 
   std::map<std::string, int> directories;
 
-  for (const auto &app : SaolaConfiguration::Instance().GetApps())
+  std::map<std::string, std::shared_ptr<AppConfiguration>> appConfigMap;
+  SaolaConfiguration::Instance().GetApps(appConfigMap);
+
+  for (const auto &app : appConfigMap)
   {
-    if (app->type_ == EXPORTER_APP_TYPE)
+    if (app.second->type_ == EXPORTER_APP_TYPE)
     {
       // Process Exporter app
-      if (app->fieldValues_.isMember(EXPORTER_DIR))
+      if (app.second->fieldValues_.isMember(EXPORTER_DIR))
       {
         int expiredHours = 24 * 2; // 2 days
-        if (app->fieldValues_.isMember(RETENTION_EXPIRED))
+        if (app.second->fieldValues_.isMember(RETENTION_EXPIRED))
         {
-          expiredHours = app->fieldValues_[RETENTION_EXPIRED].asInt();
+          expiredHours = app.second->fieldValues_[RETENTION_EXPIRED].asInt();
         }
-        std::string dir = app->fieldValues_[EXPORTER_DIR].asString();
+        std::string dir = app.second->fieldValues_[EXPORTER_DIR].asString();
         if (!dir.empty() && dir.length() > 0 && dir[dir.length() - 1] != '/')
         {
           dir += '/';

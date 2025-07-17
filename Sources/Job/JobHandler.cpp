@@ -1,13 +1,13 @@
 #include "JobHandler.h"
 
-#include "SaolaConfiguration.h"
-#include "SaolaDatabase.h"
+#include "../Config/SaolaConfiguration.h"
+#include "../SaolaDatabase.h"
 
-#include "StableEventDTOUpdate.h"
+#include "../DTO/StableEventDTOUpdate.h"
 
-#include "InMemoryJobCache.h"
+#include "../Cache/InMemoryJobCache.h"
 
-#include "../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
+#include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 #include <Logging.h>
 
@@ -17,12 +17,14 @@ namespace Saola
 {
   void OnJobSubmitted(const std::string &jobId)
   {
+    LOG(INFO) << "[Saola::OnJobSubmitted] new job submitted jobId=" << jobId;
     if (SaolaConfiguration::Instance().EnableInMemJobCache())
     {
       Json::Value job;
       OrthancPlugins::RestApiGet(job, "/jobs/" + jobId, false);
-      if (!job.isNull() && !job.empty() && job.isMember("Type") && job["Type"].asString() == SaolaConfiguration::Instance().GetInMemJobType())
+      if (!job.isNull() && !job.empty() && job.isMember("Type") && SaolaConfiguration::Instance().GetInMemJobTypes().find(job["Type"].asString()) != SaolaConfiguration::Instance().GetInMemJobTypes().end())
       {
+        LOG(INFO) << "[Saola::OnJobSubmitted] Cache job=" << job.toStyledString();
         InMemoryJobCache::Instance().Insert(jobId, job);
       }
     }
