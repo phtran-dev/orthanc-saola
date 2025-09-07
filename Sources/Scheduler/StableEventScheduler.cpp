@@ -13,6 +13,7 @@
 #include "../Constants.h"
 
 #include "../Notification/Notification.h"
+#include "../Config/AppConfiguration.h"
 
 #include <Logging.h>
 #include <Enumerations.h>
@@ -416,6 +417,11 @@ static bool ProcessAsyncTask(const AppConfiguration &appConfig, StableEventDTOGe
     if (dto.id_ >= 0)
     {
       SaolaDatabase::Instance().SaveTransferJob(TransferJobDTOCreate(jobResponse["ID"].asString(), dto.id_), result);
+      if (dto.retry_ > 0)
+      {
+        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, dto.failed_reason_.c_str(), dto.retry_ + 1, Saola::GetNextXSecondsFromNowInString(dto.delay_sec_).c_str()));
+      }
+
       LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " Save JOB " << result.ToJsonString();
     }
     return true;
@@ -519,7 +525,7 @@ bool StableEventScheduler::ExecuteEvent(StableEventDTOGet &event)
   }
 
   Json::Value notification;
-  if (appConfig->type_ == "Transfer" || appConfig->type_ == "Exporter")
+  if (appConfig->type_ == AppConfiguration::Transfer || appConfig->type_ == AppConfiguration::Exporter || appConfig->type_ == AppConfiguration::StoreSCU)
   {
     return ProcessAsyncTask(*appConfig, event, notification);
   }
@@ -548,14 +554,9 @@ static void MonitorTasks(std::list<StableEventDTOGet> &tasks)
 
     Json::Value notification;
     notification[Notification::ERROR_MESSAGE] = "";
-    if (appConfig->type_ == "Transfer" || appConfig->type_ == "Exporter" || appConfig->type_ == "StoreSCU")
+    if (appConfig->type_ == AppConfiguration::Transfer || appConfig->type_ == AppConfiguration::Exporter || appConfig->type_ == AppConfiguration::StoreSCU)
     {
-      if (!ProcessAsyncTask(*appConfig, task, notification))
-      {
-        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, task.failed_reason_.c_str(), task.retry_ + 1, Saola::GetNextXSecondsFromNowInString(task.delay_sec_).c_str()));
-        SaolaDatabase::Instance().DeleteTransferJobsByQueueId(task.id_);
-        Notification::Instance().SendMessage(notification);
-      }
+      ProcessAsyncTask(*appConfig, task, notification);
     }
     else
     {
