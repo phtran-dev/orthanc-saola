@@ -28,7 +28,7 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->root_ = saola.GetStringValue("Root", "/saola/");
   this->maxRetry_ = saola.GetIntegerValue("MaxRetry", 5);
   this->throttleDelayMs_ = saola.GetIntegerValue("ThrottleDelayMs", 100); // Default 100 milliseconds
-  this->queryLimit_ = saola.GetIntegerValue("QueryLimit", 100); 
+  this->queryLimit_ = saola.GetIntegerValue("QueryLimit", 10); 
 
   this->databaseServerIdentifier_ = OrthancPluginGetDatabaseServerIdentifier(OrthancPlugins::GetGlobalContext());
   std::string pathStorage = configuration.GetStringValue(STORAGE_DIRECTORY, ORTHANC_STORAGE);

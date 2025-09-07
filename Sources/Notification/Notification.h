@@ -17,6 +17,10 @@ private:
 
 public:
 
+  static constexpr const char *ERROR_MESSAGE = "ErrorMessage";
+
+  static constexpr const char *ERROR_DETAIL = "ErrorDetail";
+
   static Notification& Instance();
 
   void SendMessage(const Json::Value &content);

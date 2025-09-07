@@ -69,7 +69,7 @@ public:
   {
     if (!this->enabled_)
     {
-      LOG(INFO) << "[SimpleNotification] Not Enable";
+      LOG(INFO) << "[SimpleNotification] Not Enabled";
       return;
     }
 
