@@ -18,7 +18,7 @@ struct TransferJobDTOGet
   }
 
   TransferJobDTOGet(std::string &&id,
-                    ino64_t queue_id,
+                    int64_t queue_id,
                     std::string &&last_updated_time,
                     std::string &&creation_time) : id_(id),
                                                    queue_id_(queue_id),

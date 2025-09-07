@@ -2,6 +2,7 @@
 
 #include <thread>
 #include <boost/noncopyable.hpp>
+#include <boost/thread.hpp>
 #include <map>
 
 class RemoveFileScheduler
@@ -14,7 +15,7 @@ private:
     State_Done
   };
 
-  std::thread *m_worker;
+  boost::thread *m_worker;
 
   State m_state;
 

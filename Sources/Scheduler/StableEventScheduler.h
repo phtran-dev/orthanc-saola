@@ -4,6 +4,7 @@
 
 #include <thread>
 #include <boost/noncopyable.hpp>
+#include <boost/thread.hpp>
 
 class StableEventScheduler
 {
@@ -15,9 +16,9 @@ private:
     State_Done
   };
 
-  std::thread *m_worker1;
+  boost::thread *m_worker1;
 
-  std::thread *m_worker2;
+  boost::thread *m_worker2;
 
   State m_state;
 
