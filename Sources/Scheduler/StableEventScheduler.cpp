@@ -293,7 +293,7 @@ static void ConstructAndSendMessage(const AppConfiguration &appConfig, const Jso
 
 static void PrepareBody(Json::Value &body, const AppConfiguration &appConfig, const StableEventDTOGet &dto)
 {
-  if (appConfig.type_ == "Transfer")
+  if (appConfig.type_ == AppConfiguration::Transfer)
   {
     body.copy(appConfig.fieldValues_);
 
@@ -305,13 +305,13 @@ static void PrepareBody(Json::Value &body, const AppConfiguration &appConfig, co
       body["Resources"].append(resource);
     }
   }
-  else if (appConfig.type_ == "Exporter")
+  else if (appConfig.type_ == AppConfiguration::Exporter)
   {
     body.copy(appConfig.fieldValues_);
     body["Level"] = dto.resource_type_;
     body["ID"] = dto.resource_id_;
   }
-  else if (appConfig.type_ == "StoreSCU")
+  else if (appConfig.type_ == AppConfiguration::StoreSCU)
   {
     body.copy(appConfig.fieldValues_);
     body["Resources"] = Json::arrayValue;
