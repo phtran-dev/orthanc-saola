@@ -591,7 +591,8 @@ void StableEventScheduler::Start()
   }
 
   this->m_state = State_Running;
-  this->m_worker1 = new std::thread([this]()
+  
+  this->m_worker1 = new boost::thread([this]()
                                     {
     while (this->m_state == State_Running)
     {
@@ -604,8 +605,7 @@ void StableEventScheduler::Start()
         std::this_thread::sleep_for(std::chrono::milliseconds(SaolaConfiguration::Instance().GetThrottleDelayMs()));
       }
     } });
-
-  this->m_worker2 = new std::thread([this]()
+  this->m_worker2 = new boost::thread([this]()
                                     {
     while (this->m_state == State_Running)
     {

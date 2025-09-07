@@ -14,7 +14,6 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
-#include <boost/thread.hpp>
 
 PollingDBScheduler &PollingDBScheduler::Instance()
 {
@@ -67,7 +66,8 @@ void PollingDBScheduler::Start()
   }
 
   this->m_state = State_Running;
-  this->m_worker = new std::thread([this]() {
+  
+  this->m_worker = new boost::thread([this]() {
     while (this->m_state == State_Running)
     {
       this->MonitorDatabase();

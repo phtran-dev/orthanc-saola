@@ -7,6 +7,8 @@
 #include <thread>
 
 #include <boost/noncopyable.hpp>
+#include <boost/thread.hpp>
+
 
 constexpr const char *ERROR_MESSAGE = "ErrorMessage";
 constexpr const char *ERROR_DETAIL = "ErrorDetail";
@@ -73,7 +75,7 @@ public:
       return;
     }
 
-    std::thread t([=]()
+    boost::thread t([=]()
                   {
     try
     {
@@ -133,7 +135,7 @@ public:
       return;
     }
 
-    std::thread t([=]()
+    boost::thread t([=]()
                   {
     try
     {

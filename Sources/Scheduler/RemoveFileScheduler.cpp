@@ -11,7 +11,6 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
-#include <boost/thread.hpp>
 #include <boost/algorithm/string/join.hpp>
 
 #include <stack>
@@ -212,7 +211,8 @@ void RemoveFileScheduler::Start()
   }
 
   this->m_state = State_Running;
-  this->m_worker = new std::thread([this, directories]()
+  
+  this->m_worker = new boost::thread([this, directories]()
                                    {
     while (this->m_state == State_Running)
     {
