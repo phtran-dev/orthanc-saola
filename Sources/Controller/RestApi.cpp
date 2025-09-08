@@ -276,11 +276,40 @@ static void GetStableEventByIds(OrthancPluginRestOutput *output,
   std::list<StableEventDTOGet> events;
   SaolaDatabase::Instance().GetByIds(ids, events);
 
+  std::map<int64_t, Json::Value> jobMap;
+  {
+    std::list<TransferJobDTOGet> jobs;
+    SaolaDatabase::Instance().GetTransferJobsByByQueueIds(ids, jobs);
+    for (const auto& job : jobs)
+    {
+      Json::Value val;
+      job.ToJson(val);
+      auto it = jobMap.find(job.queue_id_);
+      if (it == jobMap.end())
+      {
+        Json::Value vals = Json::arrayValue;
+        vals.append(val);
+        jobMap[job.queue_id_] = vals;
+      }
+      else
+      {
+        it->second.append(val);
+      }
+    }
+  }
+  
+
   Json::Value answer = Json::arrayValue;
   for (const auto &event : events)
   {
     Json::Value value;
     event.ToJson(value);
+
+    auto it = jobMap.find(event.id_);
+    if (it != jobMap.end())
+    {
+      value["jobs"] = it->second;
+    }
     answer.append(value);
   }
 
