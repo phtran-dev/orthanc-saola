@@ -7,6 +7,8 @@
 
 #include "../Cache/InMemoryJobCache.h"
 
+#include "../Notification/Notification.h"
+
 #include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
 #include <Logging.h>
@@ -15,6 +17,9 @@
 
 namespace Saola
 {
+  constexpr const char *ERROR_MESSAGE = "ErrorMessage";
+  constexpr const char *ERROR_DETAIL = "ErrorDetail";
+
   void OnJobSubmitted(const std::string &jobId)
   {
     LOG(INFO) << "[Saola::OnJobSubmitted] new job submitted jobId=" << jobId;
@@ -75,6 +80,10 @@ namespace Saola
           dtoGet.retry_ += 1;
           LOG(INFO) << "[OnJobFailure] Updating queue " << dtoGet.ToJsonString();
           SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dtoGet.id_, "Callback OnJobFailure triggered", dtoGet.retry_, Saola::GetNextXSecondsFromNowInString(dtoGet.delay_sec_).c_str()));
+          Json::Value notification;
+          notification[ERROR_DETAIL] = dto.ToJsonString();
+          notification[ERROR_MESSAGE] = "Job Failure for queue_id=" + std::to_string(dto.queue_id_) + ", jobId=" + jobId + ", increasing retry to " + std::to_string(dtoGet.retry_);
+          Notification::Instance().SendMessage(notification);
         }
         else
         {

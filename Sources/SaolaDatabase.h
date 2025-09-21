@@ -113,4 +113,6 @@ public:
 
   bool GetTransferJobsByByQueueId(int64_t id, std::list<TransferJobDTOGet>& results);
 
+  bool GetTransferJobsByByQueueIds(const std::list<int64_t>& ids, std::list<TransferJobDTOGet>& results);
+
 };

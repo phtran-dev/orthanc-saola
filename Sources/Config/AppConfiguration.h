@@ -13,6 +13,10 @@
 
 struct AppConfiguration
 {
+  static constexpr const char* Transfer = "Transfer";
+  static constexpr const char* Exporter = "Exporter";
+  static constexpr const char* StoreSCU = "StoreSCU";
+
   std::string id_;
 
   bool enable_ = true;

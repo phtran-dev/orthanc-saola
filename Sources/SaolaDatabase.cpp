@@ -480,35 +480,71 @@ bool SaolaDatabase::DeleteEventByIds(const std::list<int64_t> &ids)
   if (ids.empty())
   {
     // Delete all rows when no ids are specified
-    Orthanc::SQLite::Statement statement(db_, "DELETE FROM StableEventQueues");
-    ok = statement.Run();
+    {
+      Orthanc::SQLite::Statement statement(db_, "DELETE FROM TransferJobs");
+      ok &= statement.Run();
+    }
+    {
+      Orthanc::SQLite::Statement statement(db_, "DELETE FROM StableEventQueues");
+      ok &= statement.Run();
+    }
+    
   }
   else
   {
-    // Create SQL with the right number of placeholders for the IN clause
-    std::string sql = "DELETE FROM StableEventQueues WHERE id IN (";
-    
-    // Add the appropriate number of parameter placeholders
-    // Add a parameter placeholder for each app type
-    for (size_t i = 0; i < ids.size(); i++)
     {
-      sql += (i > 0) ? ",?" : "?";
+      // Create SQL with the right number of placeholders for the IN clause
+      std::string sql = "DELETE FROM TransferJobs WHERE queue_id IN (";
+      
+      // Add the appropriate number of parameter placeholders
+      for (size_t i = 0; i < ids.size(); i++)
+      {
+        sql += (i > 0) ? ",?" : "?";
+      }
+      sql += ")";
+      
+      LOG(INFO) << "SaolaDatabase::DeleteEventByIds sql=" << sql;
+      
+      // Prepare the statement
+      Orthanc::SQLite::Statement statement(db_, sql);
+      
+      // Bind each ID parameter - using 0-based indexing as per your implementation
+      int paramIndex = 0;
+      for (const auto &id : ids)
+      {
+        statement.BindInt64(paramIndex++, id);
+      }
+      
+      // Execute the statement
+      ok &= statement.Run();
     }
-    sql += ")";
-    LOG(INFO) << "SaolaDatabase::DeleteEventByIds sql=" << sql;
 
-    // Prepare the statement
-    Orthanc::SQLite::Statement statement(db_, sql);
-    
-    // Bind each ID parameter
-    int paramIndex = 0;
-    for (const auto &id : ids)
     {
-      statement.BindInt64(paramIndex++, id);
+      // Create SQL with the right number of placeholders for the IN clause
+      std::string sql = "DELETE FROM StableEventQueues WHERE id IN (";
+      
+      // Add the appropriate number of parameter placeholders
+      // Add a parameter placeholder for each app type
+      for (size_t i = 0; i < ids.size(); i++)
+      {
+        sql += (i > 0) ? ",?" : "?";
+      }
+      sql += ")";
+      LOG(INFO) << "SaolaDatabase::DeleteEventByIds sql=" << sql;
+
+      // Prepare the statement
+      Orthanc::SQLite::Statement statement(db_, sql);
+      
+      // Bind each ID parameter
+      int paramIndex = 0;
+      for (const auto &id : ids)
+      {
+        statement.BindInt64(paramIndex++, id);
+      }
+      
+      // Execute the statement
+      ok &= statement.Run();
     }
-    
-    // Execute the statement
-    ok = statement.Run();
   }
 
   transaction.Commit();
@@ -858,6 +894,47 @@ bool SaolaDatabase::GetTransferJobsByByQueueId(int64_t id, std::list<TransferJob
 
   return ok;
 }
+
+
+bool SaolaDatabase::GetTransferJobsByByQueueIds(const std::list<int64_t>& ids, std::list<TransferJobDTOGet> &results)
+{
+  boost::mutex::scoped_lock lock(mutex_);
+
+  Orthanc::SQLite::Transaction transaction(db_);
+  transaction.Begin();
+
+  std::string query = "SELECT id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE queue_id IN (";
+  // Add the right number of parameter placeholders
+  std::string placeholders;
+  for (size_t i = 0; i < ids.size(); i++) {
+    if (i > 0) placeholders += ",";
+    placeholders += "?";
+  }
+  query += placeholders + ")";
+  Orthanc::SQLite::Statement statement(db_, query);
+
+  int paramIndex = 0; // Many SQLite interfaces start at 1
+  for (const auto &id : ids)
+  {
+    statement.BindInt64(paramIndex++, id);
+  }
+
+  bool ok = false;
+  while (statement.Step())
+  {
+    TransferJobDTOGet result;
+    result.id_ = statement.ColumnString(0);
+    result.queue_id_ = statement.ColumnInt64(1);
+    result.last_updated_time_ = statement.ColumnString(2);
+    result.creation_time_ = statement.ColumnString(3);
+    results.push_back(result);
+    ok = true;
+  }
+  transaction.Commit();
+
+  return ok;
+}
+
 
 SaolaDatabase &SaolaDatabase::Instance()
 {
