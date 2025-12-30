@@ -78,6 +78,13 @@ namespace Saola
         //   LOG(INFO) << "Cannot transcode instance " << instanceId
         //             << " to transfer syntax: " << GetTransferSyntaxUid(transferSyntax_);
         // }
+
+        LOG(INFO) << "InstanceLoader::TranscodeDicom instanceId = " << instanceId << ", transferSyntax = "  << Orthanc::GetTransferSyntaxUid(this->transferSyntax_);
+        std::unique_ptr<OrthancPlugins::DicomInstance> transcoded(
+          OrthancPlugins::DicomInstance::Transcode(
+            sourceBuffer.c_str(), sourceBuffer.size(), Orthanc::GetTransferSyntaxUid(this->transferSyntax_)));
+        transcodedBuffer.assign(reinterpret_cast<const char*>(transcoded->GetBuffer()), transcoded->GetSize());
+        return true;
       }
 
       return false;
@@ -101,6 +108,11 @@ namespace Saola
     virtual void GetDicom(std::string &dicom, const std::string &instanceId) ORTHANC_OVERRIDE
     {
       PluginIndex::Instance().ReadDicom(dicom, instanceId);
+
+      if (this->transcode_)
+      {
+        TranscodeDicom(dicom, dicom, instanceId);
+      }
     }
   };
 
@@ -228,6 +240,8 @@ namespace Saola
 
         boost::shared_ptr<std::string> dicomContent;
         {
+          boost::mutex::scoped_lock lock(availableInstancesMutex_);
+
           if (availableInstances_.find(instanceId) != availableInstances_.end())
           {
             // this is the instance we were waiting for
@@ -915,6 +929,7 @@ namespace Saola
 
   ExporterJob::~ExporterJob()
   {
+    LOG(INFO) << "[ExporterJob] Destructor called, cleaning up resources";
   }
 
   void ExporterJob::SetDescription(const std::string &description)
@@ -972,6 +987,7 @@ namespace Saola
 
   void ExporterJob::Start()
   {
+    LOG(INFO) << "[ExporterJob::Start] Starting job with loaderThreads=" << loaderThreads_;
     if (loaderThreads_ == 0)
     {
       // default behaviour before loaderThreads was introducted in 1.10.0
@@ -992,6 +1008,7 @@ namespace Saola
 
       instancesCount_ = writer_->GetInstancesCount();
       uncompressedSize_ = writer_->GetUncompressedSize();
+      LOG(INFO) << "[ExporterJob::Start] Initialized with instancesCount=" << instancesCount_ << ", uncompressedSize=" << uncompressedSize_;
     }
   }
 
@@ -1021,16 +1038,19 @@ namespace Saola
 
   void ExporterJob::FinalizeTarget()
   {
+    LOG(INFO) << "[ExporterJob::FinalizeTarget] Finalizing target";
     directorySize_ = writer_->GetDirectorySize();
     if (writer_.get() != NULL)
     {
       writer_->Close(); // Flush all the results
       writer_.reset();
+      LOG(INFO) << "[ExporterJob::FinalizeTarget] Writer closed and reset";
     }
 
     if (instanceLoader_.get() != NULL)
     {
       instanceLoader_->Clear();
+      LOG(INFO) << "[ExporterJob::FinalizeTarget] Instance loader cleared";
     }
 
     {
@@ -1053,6 +1073,7 @@ namespace Saola
         value[KEY_RESOURCES].append(resource);
       }
       UpdateContent(value);
+      LOG(INFO) << "[ExporterJob::FinalizeTarget] Content updated";
     }
   }
 

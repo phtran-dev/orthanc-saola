@@ -609,6 +609,8 @@ void UpdateTransferJobs(OrthancPluginRestOutput *output,
   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
 }
 
+
+#include <boost/filesystem.hpp>
 void ExportSingleResource(OrthancPluginRestOutput *output,
                           const char *url,
                           const OrthancPluginHttpRequest *request)
@@ -623,26 +625,90 @@ void ExportSingleResource(OrthancPluginRestOutput *output,
   Json::Value requestBody;
   OrthancPlugins::ReadJson(requestBody, request->body, request->bodySize);
 
+  if (!requestBody.isMember("ID") && !requestBody.isMember("StudyInstanceUID") && !requestBody.isMember("SeriesInstanceUID"))
+  {
+      // Missing params
+      LOG(WARNING) << "[ExportSingleResource] Missing params : ID, StudyInstanceUID, SeriesInstanceUID";
+      return OrthancPluginSendHttpStatusCode(context, output, 400);
+  }
+
+
   std::string exportDirectory = requestBody["ExportDir"].asString();
   std::string resource = requestBody["Level"].asString();
-  Orthanc::Toolbox::ToUpperCase(resource);
-  std::string publicId = requestBody["ID"].asString();
 
+  Orthanc::Toolbox::ToUpperCase(resource);
+  std::string resourceId;
+  if (requestBody.isMember("ID"))
+  {
+    resourceId = requestBody["ID"].asString();
+  }
+  else
+  {
+    Json::Value findData, resources;
+    if (requestBody.isMember("StudyInstanceUID"))
+    {
+      resource = "STUDY";
+      findData["Level"] = "Study";
+      findData["Query"]["StudyInstanceUID"] = requestBody["StudyInstanceUID"];
+    }
+    else if (requestBody.isMember("SeriesInstanceUID"))
+    {
+      resource = "SERIES";
+      findData["Level"] = "Series";
+      findData["Query"]["SeriesInstanceUID"] = requestBody["SeriesInstanceUID"];
+    }
+    OrthancPlugins::RestApiPost(resources, "/tools/find", findData, false);
+    if (resources.empty())
+    {
+      // No resources found for the given StudyInstanceUID or SeriesInstanceUID
+      LOG(WARNING) << "[ExportSingleResource] No resources found for the specified UID";
+      return OrthancPluginSendHttpStatusCode(context, output, 404);
+    }
+
+    resourceId = resources[0].asString();
+  }
+
+
+  LOG(INFO) << "[ExportSingleResource] Creating ExporterJob for resource " << resourceId;
   std::unique_ptr<Saola::ExporterJob> job(new Saola::ExporterJob(false, exportDirectory, resource == "STUDY" ? Orthanc::ResourceType_Study : Orthanc::ResourceType_Series));
   auto priority = 0;
-  job->AddResource(publicId);
-  job->SetLoaderThreads(0);
-  job->SetDescription("REST API");
+  Orthanc::DicomTransferSyntax transferSyntax;
+  if (requestBody.isMember("Transcode"))
+  {
+    job->SetTranscode(Orthanc::GetTransferSyntax(requestBody["Transcode"].asString()));
+  }
+  job->AddResource(resourceId);
+  if (requestBody.isMember("ThreadCount"))
+  {
+    job->SetLoaderThreads(requestBody["ThreadCount"].asInt());
+  }
 
-  boost::shared_ptr<Orthanc::SharedMessageQueue> queue(new Orthanc::SharedMessageQueue);
+  job->SetDescription("Export Single Resource to directory");
 
-  const std::string &jobId = OrthancPlugins::OrthancJob::Submit(job.release(), priority);
+  // boost::shared_ptr<Orthanc::SharedMessageQueue> queue(new Orthanc::SharedMessageQueue);
 
-  Json::Value answer = Json::objectValue;
-  answer["ID"] = jobId;
-  answer["Path"] = "/jobs/" + jobId;
-  std::string s = answer.toStyledString();
+  LOG(INFO) << "[ExportSingleResource] Submitting job to Orthanc";
+  OrthancPlugins::OrthancJob::SubmitFromRestApiPost(output, requestBody, job.release());
+  LOG(INFO) << "[ExportSingleResource] Job submitted successfully";
+
+/*
+  Json::Value studyResource;
+  OrthancPlugins::RestApiGet(studyResource, std::string("/studies/") + publicId, false);
+  std::string studyInstanceUID = studyResource["MainDicomTags"]["StudyInstanceUID"].asString();
+
+  boost::filesystem::path source = std::string("/orthanc-storage-1/dicom/") + studyInstanceUID;
+  boost::filesystem::path target = exportDirectory;
+
+  if (!boost::filesystem::exists(target))
+  {
+    boost::filesystem::create_directories(target); 
+  }
+
+  // 2. Perform the copy
+  boost::filesystem::copy(source, target, boost::filesystem::copy_options::recursive | boost::filesystem::copy_options::overwrite_existing);
+  std::string s = "OK";
   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+*/
 }
 
 void DeleteStudyResource(OrthancPluginRestOutput *output,
