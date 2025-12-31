@@ -16,6 +16,8 @@
 
 #include <boost/filesystem.hpp>
 
+#include <fstream>
+
 #if defined(_MSC_VER)
 #define snprintf _snprintf
 #endif
@@ -197,7 +199,16 @@ namespace Saola
         try
         {
           boost::shared_ptr<std::string> dicomContent(new std::string());
-          PluginIndex::Instance().ReadDicom(*dicomContent, instanceId->GetId());
+          // PluginIndex::Instance().ReadDicom(*dicomContent, instanceId->GetId());
+          // PHONG Now read file from absolute path instanceId->GetId() to dicomContent
+          std::ifstream file(instanceId->GetId(), std::ios::binary);
+          if (file.is_open())
+          {
+            std::stringstream buffer;
+            buffer << file.rdbuf();
+            *dicomContent = buffer.str();
+            file.close();
+          }
 
           if (that->transcode_)
           {
@@ -353,6 +364,9 @@ namespace Saola
     std::string series_;
     std::string instance_;
 
+    std::string studyInstanceUID_;
+    std::string seriesInstanceUID_;
+
     static void GoToParent(PluginIndex &index,
                            std::string &current)
     {
@@ -387,10 +401,21 @@ namespace Saola
 
       case Orthanc::ResourceType_Series:
         series_ = current;
+        {
+          Json::Value tags;
+          index.GetMainDicomTags(tags, series_, Orthanc::ResourceType_Series);
+          seriesInstanceUID_ = tags["SeriesInstanceUID"].asString();
+        }
+
         GoToParent(index, current);
 
       case Orthanc::ResourceType_Study:
         study_ = current;
+        {
+          Json::Value tags;
+          index.GetMainDicomTags(tags, study_, Orthanc::ResourceType_Study);
+          studyInstanceUID_ = tags["StudyInstanceUID"].asString();
+        }
         break;
 
       default:
@@ -450,7 +475,7 @@ namespace Saola
 
   class ExporterJob::ArchiveIndex : public boost::noncopyable
   {
-  private:
+  public:
     struct Instance
     {
       std::string id_;
@@ -475,12 +500,16 @@ namespace Saola
     {
       if (level_ == ArchiveResourceType_Instance)
       {
+        LOG(INFO) << "PHONG AddResourceToExpand id=" << id;
         Orthanc::FileInfo tmp;
-        int64_t revision; // ignored
-        if (index.LookupAttachment(tmp, revision, id, Orthanc::FileContentType_Dicom))
-        {
-          instances_.push_back(Instance(id, tmp.GetUncompressedSize()));
-        }
+        // int64_t revision; // ignored
+        // if (index.LookupAttachment(tmp, revision, id, Orthanc::FileContentType_Dicom))
+        // {
+        //   instances_.push_back(Instance(id, tmp.GetUncompressedSize()));
+        // }
+
+        // PHONG now I want to get info of dicom from the id which is the absolute path of dicom file
+        instances_.push_back(Instance(id, 0));
       }
       else
       {
@@ -828,7 +857,9 @@ namespace Saola
       // char filename[24];
       // snprintf(filename, sizeof(filename) - 1, instanceFormat_, counter_);
       counter_++;
-      commands_.AddWriteInstance(instanceId + ".dcm", instanceId, uncompressedSize);
+      // Just get the file name instead of full path
+      // commands_.AddWriteInstance(instanceId + ".dcm", instanceId, uncompressedSize);
+      commands_.AddWriteInstance(boost::filesystem::path(instanceId).filename().string(), instanceId, uncompressedSize);
     }
   };
 
@@ -850,6 +881,30 @@ namespace Saola
     {
       ArchiveIndexVisitor visitor(commands_);
       archive.Expand(PluginIndex::Instance());
+
+
+    LOG(INFO) << "PHONG1 [ExporterJob] Begin resource ";
+    LOG(INFO) << "PHONG1 archive_->level_ " << archive.level_;
+    for (const auto &resource : archive.resources_) 
+    {
+      LOG(INFO) << "PHONG1 resource=" << resource.first << ", second == NULL ? " << (resource.second == nullptr);
+      if (resource.second !=  nullptr)
+      {
+        for (const auto& r1 : resource.second->resources_)
+        {
+                LOG(INFO) << "PHONG1 resource1 = " << r1.first << ", second == NULL ? " << (r1.second == nullptr);
+
+        }
+      }
+    }
+
+    for (const auto &instance : archive.instances_)
+    {
+      LOG(INFO) << "PHONG1 instance" << instance.id_;
+    }
+
+    LOG(INFO) << "PHONG1 [ExporterJob] End resource ";
+
       archive.Apply(visitor);
       dir_.reset(new Saola::HierarchicalDirWriter(rootDir)); // TODO hard code
     }
@@ -952,6 +1007,27 @@ namespace Saola
     }
     resourceIdentifiers_.reset(new ResourceIdentifiers(PluginIndex::Instance(), publicId));
     archive_->Add(PluginIndex::Instance(), *resourceIdentifiers_);
+    LOG(INFO) << "PHONG [ExporterJob] Begin resource " << publicId;
+    LOG(INFO) << "PHONG archive_->level_ " << archive_->level_;
+    for (const auto &resource : archive_->resources_) 
+    {
+      LOG(INFO) << "PHONG resource=" << resource.first << ", second == NULL ? " << (resource.second == nullptr);
+      if (resource.second !=  nullptr)
+      {
+        for (const auto& r1 : resource.second->resources_)
+        {
+                LOG(INFO) << "PHONG resource1 = " << r1.first << ", second == NULL ? " << (r1.second == nullptr);
+
+        }
+      }
+    }
+
+    for (const auto &instance : archive_->instances_)
+    {
+      LOG(INFO) << "PHONG instance" << instance.id_ ;
+    }
+
+    LOG(INFO) << "PHONG [ExporterJob] End resource " << publicId;
   }
 
   void ExporterJob::SetTranscode(Orthanc::DicomTransferSyntax transferSyntax)

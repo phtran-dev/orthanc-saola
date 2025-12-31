@@ -685,11 +685,57 @@ void ExportSingleResource(OrthancPluginRestOutput *output,
 
   job->SetDescription("Export Single Resource to directory");
 
-  // boost::shared_ptr<Orthanc::SharedMessageQueue> queue(new Orthanc::SharedMessageQueue);
+  // OrthancPlugins::OrthancJob::SubmitFromRestApiPost(output, requestBody, job.release());
 
-  LOG(INFO) << "[ExportSingleResource] Submitting job to Orthanc";
-  OrthancPlugins::OrthancJob::SubmitFromRestApiPost(output, requestBody, job.release());
-  LOG(INFO) << "[ExportSingleResource] Job submitted successfully";
+
+
+
+  LOG(INFO) << "[ExportSingleResource] Starting manual job execution";
+  
+  try
+  {
+    // Execute all steps until completion
+    // Note: Do NOT call job->Start() manually - Step() handles initialization automatically
+    OrthancPluginJobStepStatus status = OrthancPluginJobStepStatus_Continue;
+    int stepCount = 0;
+    
+    while (status == OrthancPluginJobStepStatus_Continue)
+    {
+      status = job->Step();
+      stepCount++;
+      
+      if (stepCount % 100 == 0)
+      {
+        LOG(INFO) << "[ExportSingleResource] Processed " << stepCount << " steps";
+      }
+    }
+    
+    if (status == OrthancPluginJobStepStatus_Success)
+    {
+      LOG(INFO) << "[ExportSingleResource] Job completed successfully after " << stepCount << " steps";
+      Json::Value answer = Json::objectValue;
+      answer["status"] = "success";
+      answer["message"] = "Export completed successfully";
+      answer["steps"] = stepCount;
+      std::string s = answer.toStyledString();
+      OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+    }
+    else
+    {
+      LOG(ERROR) << "[ExportSingleResource] Job failed with status: " << status;
+      OrthancPluginSendHttpStatusCode(context, output, 500);
+    }
+  }
+  catch (const Orthanc::OrthancException& e)
+  {
+    LOG(ERROR) << "[ExportSingleResource] Exception during job execution: " << e.What();
+    OrthancPluginSendHttpStatusCode(context, output, 500);
+  }
+  catch (const std::exception& e)
+  {
+    LOG(ERROR) << "[ExportSingleResource] Standard exception during job execution: " << e.what();
+    OrthancPluginSendHttpStatusCode(context, output, 500);
+  }
 
 /*
   Json::Value studyResource;

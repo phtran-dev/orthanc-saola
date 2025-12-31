@@ -1,5 +1,10 @@
 #include "PluginIndex.h"
 
+#include <boost/filesystem.hpp>
+
+
+#include <Logging.h>
+
 bool PluginIndex::LookupParent(std::string &target,
                                const std::string &publicId)
 {
@@ -79,10 +84,39 @@ void PluginIndex::GetChildren(std::list<std::string> &result,
   }
   else if (OrthancPlugins::RestApiGet(response, "/series/" + publicId, false) && !response.empty())
   {
-    for (const auto &study : response["Instances"])
+    if (response.isMember("Instances") && response["Instances"].isArray() && response["Instances"].size() > 0)
     {
-      result.push_back(study.asString());
+      std::string firstInstanceId = response["Instances"][0].asString();
+      LOG(INFO) << "PHONG firstInstanceId: " << firstInstanceId << std::endl;
+
+     
+      
+      // Query the attachment info to get the actual file path
+      Json::Value attachmentInfo;
+      if (OrthancPlugins::RestApiGet(attachmentInfo, "/instances/" + firstInstanceId + "/attachments/dicom/info", true) 
+          && attachmentInfo.isMember("Path"))
+      {
+        std::string instancePath = attachmentInfo["Path"].asString();
+
+         LOG(INFO) << "PHONG firstInstanceId: " << firstInstanceId << ", instancePath=" << instancePath << std::endl;
+        
+        // Get the parent directory (series folder) by going up one level
+        boost::filesystem::path seriesFolder = boost::filesystem::path(instancePath).parent_path();
+        
+        // List all files in the series folder
+        if (boost::filesystem::exists(seriesFolder) && boost::filesystem::is_directory(seriesFolder))
+        {
+          for (const auto &entry : boost::filesystem::directory_iterator(seriesFolder))
+          {
+            if (boost::filesystem::is_regular_file(entry.path()))
+            {
+              result.push_back(entry.path().string());
+            }
+          }
+        }
+      }
     }
+    
     return;
   }
 }
