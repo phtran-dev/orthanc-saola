@@ -11,9 +11,10 @@
 
 class PluginIndex
 {
-  private:
+private:
   PluginIndex()
   {}
+
 public:
   static PluginIndex &Instance();
 

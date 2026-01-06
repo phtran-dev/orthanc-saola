@@ -610,7 +610,6 @@ void UpdateTransferJobs(OrthancPluginRestOutput *output,
 }
 
 
-#include <boost/filesystem.hpp>
 void ExportSingleResource(OrthancPluginRestOutput *output,
                           const char *url,
                           const OrthancPluginHttpRequest *request)
@@ -627,9 +626,9 @@ void ExportSingleResource(OrthancPluginRestOutput *output,
 
   if (!requestBody.isMember("ID") && !requestBody.isMember("StudyInstanceUID") && !requestBody.isMember("SeriesInstanceUID"))
   {
-      // Missing params
-      LOG(WARNING) << "[ExportSingleResource] Missing params : ID, StudyInstanceUID, SeriesInstanceUID";
-      return OrthancPluginSendHttpStatusCode(context, output, 400);
+    // Missing params
+    LOG(WARNING) << "[ExportSingleResource] Missing params : ID, StudyInstanceUID, SeriesInstanceUID";
+    return OrthancPluginSendHttpStatusCode(context, output, 400);
   }
 
 
@@ -685,9 +684,10 @@ void ExportSingleResource(OrthancPluginRestOutput *output,
 
   job->SetDescription("Export Single Resource to directory");
 
-  // OrthancPlugins::OrthancJob::SubmitFromRestApiPost(output, requestBody, job.release());
-
-
+  if (requestBody.isMember("UseJobEngine") && requestBody["UseJobEngine"].asBool())
+  {
+    return OrthancPlugins::OrthancJob::SubmitFromRestApiPost(output, requestBody, job.release());
+  }
 
 
   LOG(INFO) << "[ExportSingleResource] Starting manual job execution";
@@ -713,12 +713,7 @@ void ExportSingleResource(OrthancPluginRestOutput *output,
     if (status == OrthancPluginJobStepStatus_Success)
     {
       LOG(INFO) << "[ExportSingleResource] Job completed successfully after " << stepCount << " steps";
-      Json::Value answer = Json::objectValue;
-      answer["status"] = "success";
-      answer["message"] = "Export completed successfully";
-      answer["steps"] = stepCount;
-      std::string s = answer.toStyledString();
-      OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+      OrthancPluginAnswerBuffer(context, output, job->GetContent().c_str(), job->GetContent().size(), "application/json");
     }
     else
     {
