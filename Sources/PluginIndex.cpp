@@ -88,7 +88,7 @@ void PluginIndex::GetChildren(std::list<std::string> &result,
     if (response.isMember("Instances") && response["Instances"].isArray() && response["Instances"].size() > 0)
     {
       std::string firstInstanceId = response["Instances"][0].asString();
-      LOG(INFO) << "PHONG firstInstanceId: " << firstInstanceId << std::endl;
+      LOG(INFO) << "[PluginIndex::GetChildren] firstInstanceId: " << firstInstanceId << std::endl;
 
       // Query the attachment info to get the actual file path
       Json::Value attachmentInfo;
@@ -96,7 +96,7 @@ void PluginIndex::GetChildren(std::list<std::string> &result,
           && attachmentInfo.isMember("Path"))
       {
         std::string instancePath = attachmentInfo["Path"].asString();
-        LOG(INFO) << "PHONG firstInstanceId: " << firstInstanceId << ", instancePath=" << instancePath << std::endl;
+        LOG(INFO) << "[PluginIndex::GetChildren] firstInstanceId: " << firstInstanceId << ", instancePath=" << instancePath << std::endl;
         
         // Get the parent directory (series folder) by going up one level
         boost::filesystem::path seriesFolder = boost::filesystem::path(instancePath).parent_path();
@@ -119,12 +119,12 @@ void PluginIndex::GetChildren(std::list<std::string> &result,
  
         // Check if the number of instances matches the number of files in the series folder
         size_t instanceCount = response["Instances"].size();
-        LOG(INFO) << "PHONG instanceCount from response: " << instanceCount << ", fileCount in folder: " << fileCount;
+        LOG(INFO) << "[PluginIndex::GetChildren] instanceCount from response: " << instanceCount << ", fileCount in folder: " << fileCount;
 
         if (instanceCount == fileCount)
         {
           // If equal, use file scheme URI (file://path)
-          LOG(INFO) << "PHONG Using file scheme - counts match";
+          LOG(INFO) << "[PluginIndex::GetChildren] Using file scheme - counts match";
           for (const auto &filePath : filePaths)
           {
             result.push_back("file://" + filePath);
@@ -133,7 +133,7 @@ void PluginIndex::GetChildren(std::list<std::string> &result,
         else
         {
           // If not equal, use orthanc scheme URI (orthanc://instanceId)
-          LOG(INFO) << "PHONG Using orthanc scheme - counts don't match";
+          LOG(INFO) << "[PluginIndex::GetChildren] Using orthanc scheme - counts don't match";
           for (const auto &instance : response["Instances"])
           {
             result.push_back("orthanc://" + instance.asString());
@@ -143,7 +143,7 @@ void PluginIndex::GetChildren(std::list<std::string> &result,
       else
       {
         // Fallback: if we can't get the file path, use orthanc scheme
-        LOG(WARNING) << "PHONG Cannot get file path, using orthanc scheme as fallback";
+        LOG(WARNING) << "[PluginIndex::GetChildren] Cannot get file path, using orthanc scheme as fallback";
         for (const auto &instance : response["Instances"])
         {
           result.push_back("orthanc://" + instance.asString());
@@ -204,12 +204,12 @@ bool PluginIndex::LookupAttachment(Orthanc::FileInfo &attachment,
     if (OrthancPlugins::RestApiGet(response, "/instances/" + orthancInstanceId + "/attachments/dicom/info", false) && !response.empty())
     {
       attachment = Orthanc::FileInfo(response["Uuid"].asString(),
-                                    Orthanc::FileContentType_Dicom,
-                                    response["UncompressedSize"].asInt(),
-                                    response["UncompressedMD5"].asString(),
-                                    Orthanc::CompressionType_None,
-                                    response["CompressedSize"].asInt(),
-                                    response["CompressedMD5"].asString());
+                                     Orthanc::FileContentType_Dicom,
+                                     response["UncompressedSize"].asInt(),
+                                     response["UncompressedMD5"].asString(),
+                                     Orthanc::CompressionType_None,
+                                     response["CompressedSize"].asInt(),
+                                     response["CompressedMD5"].asString());
       return true;
     }
     return false;
@@ -221,12 +221,12 @@ bool PluginIndex::LookupAttachment(Orthanc::FileInfo &attachment,
     if (OrthancPlugins::RestApiGet(response, "/instances/" + instancePublicId + "/attachments/dicom/info", false) && !response.empty())
     {
       attachment = Orthanc::FileInfo(response["Uuid"].asString(),
-                                    Orthanc::FileContentType_Dicom,
-                                    response["UncompressedSize"].asInt(),
-                                    response["UncompressedMD5"].asString(),
-                                    Orthanc::CompressionType_None,
-                                    response["CompressedSize"].asInt(),
-                                    response["CompressedMD5"].asString());
+                                     Orthanc::FileContentType_Dicom,
+                                     response["UncompressedSize"].asInt(),
+                                     response["UncompressedMD5"].asString(),
+                                     Orthanc::CompressionType_None,
+                                     response["CompressedSize"].asInt(),
+                                     response["CompressedMD5"].asString());
       return true;
     }
     return false;

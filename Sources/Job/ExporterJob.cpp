@@ -371,19 +371,10 @@ namespace Saola
 
       case Orthanc::ResourceType_Series:
         series_ = current;
-        {
-          Json::Value tags;
-          index.GetMainDicomTags(tags, series_, Orthanc::ResourceType_Series);
-        }
-
         GoToParent(index, current);
 
       case Orthanc::ResourceType_Study:
         study_ = current;
-        {
-          Json::Value tags;
-          index.GetMainDicomTags(tags, study_, Orthanc::ResourceType_Study);
-        }
         break;
 
       default:
@@ -443,7 +434,7 @@ namespace Saola
 
   class ExporterJob::ArchiveIndex : public boost::noncopyable
   {
-  public:
+  private:
     struct Instance
     {
       std::string id_;
@@ -820,8 +811,12 @@ namespace Saola
       // snprintf(filename, sizeof(filename) - 1, instanceFormat_, counter_);
       counter_++;
       // Just get the file name instead of full path
-      // commands_.AddWriteInstance(instanceId + ".dcm", instanceId, uncompressedSize);
-      commands_.AddWriteInstance(boost::filesystem::path(instanceId).filename().string(), instanceId, uncompressedSize);
+      // commands_.AddWriteInstance(instanceId + ".dcm", instanceId, uncompressedSize); --> Do not use this
+      // instanceId is formated in either:
+      // - orthanc://instanceId
+      // - file:///path/to/file.dcm
+      // Hence using booost::fielsystem::path(instanceId).filename().string() to get the file name
+      commands_.AddWriteInstance(boost::filesystem::path(instanceId).filename().string(), instanceId, uncompressedSize); // --> Use this instead
     }
   };
 

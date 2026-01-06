@@ -631,7 +631,6 @@ void ExportSingleResource(OrthancPluginRestOutput *output,
     return OrthancPluginSendHttpStatusCode(context, output, 400);
   }
 
-
   std::string exportDirectory = requestBody["ExportDir"].asString();
   std::string resource = requestBody["Level"].asString();
 
