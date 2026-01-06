@@ -337,9 +337,6 @@ namespace Saola
     std::string series_;
     std::string instance_;
 
-    std::string studyInstanceUID_;
-    std::string seriesInstanceUID_;
-
     static void GoToParent(PluginIndex &index,
                            std::string &current)
     {
@@ -377,7 +374,6 @@ namespace Saola
         {
           Json::Value tags;
           index.GetMainDicomTags(tags, series_, Orthanc::ResourceType_Series);
-          seriesInstanceUID_ = tags["SeriesInstanceUID"].asString();
         }
 
         GoToParent(index, current);
@@ -387,7 +383,6 @@ namespace Saola
         {
           Json::Value tags;
           index.GetMainDicomTags(tags, study_, Orthanc::ResourceType_Study);
-          studyInstanceUID_ = tags["StudyInstanceUID"].asString();
         }
         break;
 
