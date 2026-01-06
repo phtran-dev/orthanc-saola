@@ -112,3 +112,20 @@ $ cat auth_config.json
 
 Studio
 https://github.com/outerbase/studio
+
+Example of how to use exporter api 
+curl  -X POST \
+  'localhost:8042/itech/export' \
+  --header 'Accept: */*' \
+  --header 'User-Agent: Thunder Client (https://www.thunderclient.com)' \
+  --header 'Authorization: Basic ZGVtbzpkZW1v' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{
+  "ExportDir": "/tmp/abc1",
+  "Level": "Study",
+  "StudyInstanceUID": "2.25.63750058429518346213142803415976630878",
+  "ThreadCount": 8,
+  "Asynchronous": true,
+  "UseJobEngine": true,
+  "Transcode": "1.2.840.10008.1.2.4.80"
+}'
