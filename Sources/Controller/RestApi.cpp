@@ -359,6 +359,61 @@ static void GetStableEvents(OrthancPluginRestOutput *output,
   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
 }
 
+static bool FetchPatientDataByResource(OrthancPluginRestOutput *output,
+                                       const Json::Value& requestBody,
+                                       StableEventDTOCreate& dto)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+// Fetch patient data from Orthanc REST API based on resource_type
+  Json::Value studyMetadata;
+  std::string resourceType = requestBody["resource_type"].asString();
+  Orthanc::Toolbox::ToUpperCase(resourceType);
+  std::string resourceId = requestBody["resource_id"].asString();
+  std::string apiEndpoint;
+
+  // Determine the appropriate Orthanc API endpoint based on resource type
+  if (resourceType == "STUDY")
+  {
+    apiEndpoint = "/studies/" + resourceId;
+  }
+  else if (resourceType == "SERIES")
+  {
+    apiEndpoint = "/series/" + resourceId + "/study";
+  }
+  else if (resourceType == "INSTANCE")
+  {
+    apiEndpoint = "/instances/" + resourceId + "/study";
+  }
+  else
+  {
+    LOG(ERROR) << "[SaveStableEvent] ERROR Invalid resource_type: " << resourceType;
+    OrthancPluginSendHttpStatusCode(context, output, 400);
+    return false;
+  }
+
+  // Call Orthanc REST API to get study metadata
+  if (!OrthancPlugins::RestApiGet(studyMetadata, apiEndpoint, false) || studyMetadata.empty())
+  {
+    LOG(ERROR) << "[SaveStableEvent] ERROR Failed to fetch study metadata from " << apiEndpoint;
+    OrthancPluginSendHttpStatusCode(context, output, 404);
+    return false;
+  }
+
+  // Extract patient fields from MainDicomTags
+  dto.patient_birth_date_ = studyMetadata["PatientMainDicomTags"].isMember("PatientBirthDate") 
+                                  ? studyMetadata["PatientMainDicomTags"]["PatientBirthDate"].asCString() : "";
+  dto.patient_id_ = studyMetadata["PatientMainDicomTags"].isMember("PatientID") 
+                          ? studyMetadata["PatientMainDicomTags"]["PatientID"].asCString() : "";
+  dto.patient_name_ = studyMetadata["PatientMainDicomTags"].isMember("PatientName") 
+                            ? studyMetadata["PatientMainDicomTags"]["PatientName"].asCString() : ""; 
+  dto.patient_sex_ = studyMetadata["PatientMainDicomTags"].isMember("PatientSex") 
+                           ? studyMetadata["PatientMainDicomTags"]["PatientSex"].asCString() : "";
+  dto.accession_number_ = studyMetadata["MainDicomTags"].isMember("AccessionNumber") 
+                                ? studyMetadata["MainDicomTags"]["AccessionNumber"].asCString() : "";
+
+  return true;
+}
+
 static void SaveStableEvent(OrthancPluginRestOutput *output,
                             const char *url,
                             const OrthancPluginHttpRequest *request)
@@ -390,6 +445,12 @@ static void SaveStableEvent(OrthancPluginRestOutput *output,
   }
 
   StableEventDTOCreate dto;
+  // Fetch patient data from Orthanc REST API based on resource_type
+  if (!FetchPatientDataByResource(output, requestBody, dto))
+  {
+    return;
+  }   
+
   dto.iuid_ = requestBody["iuid"].asCString();
   dto.resource_id_ = requestBody["resource_id"].asCString();
   dto.resouce_type_ = requestBody["resource_type"].asCString();
@@ -451,6 +512,12 @@ static void ExecuteStableEvents(OrthancPluginRestOutput *output,
   if (!StableEventScheduler::Instance().ExecuteEvent(dto))
   {
     StableEventDTOCreate dto;
+    // Fetch patient data from Orthanc REST API based on resource_type
+    if (!FetchPatientDataByResource(output, requestBody, dto))
+    {
+      return;
+    } 
+
     dto.iuid_ = requestBody["iuid"].asCString();
     dto.resource_id_ = requestBody["resource_id"].asCString();
     dto.resouce_type_ = requestBody["resource_type"].asCString();
@@ -597,7 +664,9 @@ void UpdateTransferJobs(OrthancPluginRestOutput *output,
       StableEventDTOGet dtoGet;
       if (SaolaDatabase::Instance().GetById(dto.queue_id_, dtoGet))
       {
-        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dtoGet.id_, "Lua Trigger Callback returns failure", dtoGet.retry_ + 1, Saola::GetNextXSecondsFromNowInString(dtoGet.delay_sec_).c_str()));
+        std::string now = Saola::GetNextXSecondsFromNowInString(0);
+        std::string next = Saola::GetNextXSecondsFromNowInString(dtoGet.delay_sec_);
+        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dtoGet.id_, "Lua Trigger Callback returns failure", dtoGet.retry_ + 1, now.c_str(), next.c_str(), "PENDING"));
         ok = true;
       }
     }

@@ -327,69 +327,53 @@ static bool ProcessAsyncTask(const AppConfiguration &appConfig, StableEventDTOGe
   {
     std::list<TransferJobDTOGet> jobs;
 
-    // Check All jobs' state. If JOB state is
-    // - Success --> Delete queue and its jobs
-    // - Running --> Chec if task is overdue. YES --> set try to max. NO --> wait until it finishes or being overdue
-    // - Pending, Failure, Paused, Retry --> Increase queue's retry by 1 and return
+    // Check if there is any job associated with this queue
     if (dto.id_ >= 0 && SaolaDatabase::Instance().GetTransferJobsByByQueueId(dto.id_, jobs))
     {
-      LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " Found existing jobs.size()=" << jobs.size() << " for queue_id=" << dto.id_;
-      std::list<std::string> availableJobIds;
-      std::list<std::string> invalidJobIds;
-      for (TransferJobDTOGet job : jobs)
+      if (!jobs.empty())
       {
-        Json::Value response;
-        if (!OrthancPlugins::RestApiGet(response, "/jobs/" + job.id_, false) || response.empty() || !response.isMember("State"))
+        std::list<std::string> availableJobIds;
+        std::list<std::string> invalidJobIds;
+        // Checking if job is running or pending
+        for (auto &job : jobs)
         {
-          invalidJobIds.push_back(job.id_);
-          LOG(ERROR) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " ERROR Cannot call API /jobs/" << job.id_ << ", or response empty";
-        }
-        else
-        {
-          LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " API /jobs/" << job.id_ << ", Response body has State=" << response["State"].asString();
-          if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Success))
+
+          Json::Value response;
+          if (!OrthancPlugins::RestApiGet(response, "/jobs/" + job.id_, false) || response.empty() || !response.isMember("State"))
           {
-            LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << "DELETING queue_id=" << std::to_string(dto.id_) << ", and its jobs. RETURNING TRUE";
-            SaolaDatabase::Instance().DeleteTransferJobsByQueueId(dto.id_); // dto.id_ >= 0 as condition in FOR loop
-            SaolaDatabase::Instance().DeleteEventByIds(std::list<int64_t>{dto.id_});
-            return true;
-          }
-          else if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Failure) ||
-            response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Paused) ||
-            response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Retry))
-          {
-            LOG(ERROR) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " Job " << job.id_ << " is INVALID State=" << response["State"].asString();
             invalidJobIds.push_back(job.id_);
+            LOG(ERROR) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " ERROR Cannot call API /jobs/" << job.id_ << ", or response empty";
           }
           else
           {
-            // Job is either Pending or Running
-            LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " Job " << job.id_ << " is AVAILABLE State=" << response["State"].asString();
-            availableJobIds.push_back(job.id_);
+            if (response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Running) ||
+                response["State"].asString() == Orthanc::EnumerationToString(Orthanc::JobState_Pending))
+            {
+              availableJobIds.push_back(job.id_);
+            }
+            else
+            {
+              invalidJobIds.push_back(job.id_);
+            }
           }
         }
-      }
 
-      // Delete invalid jobs
-      if (invalidJobIds.size() > 0)
-      {
-        LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " INVALID JOBS size= " << invalidJobIds.size() << " Delete invalid jobs: " << boost::algorithm::join(invalidJobIds, ",") << " jobs";
-        SaolaDatabase::Instance().DeleteTransferJobByIds(invalidJobIds);
-      }
+        // Delete invalid jobs
+        if (invalidJobIds.size() > 0)
+        {
+          LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " INVALID JOBS size= " << invalidJobIds.size() << " Delete invalid jobs: " << boost::algorithm::join(invalidJobIds, ",") << " jobs";
+          SaolaDatabase::Instance().DeleteTransferJobByIds(invalidJobIds);
+        }
 
-      if (availableJobIds.empty())
-      {
-        std::stringstream ss;
-        ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " ERROR All "<< jobs.size() << " jobs are UNAVAILABLE for queue_id=" << dto.id_ << ", jobs.size()=" << jobs.size() << " . Increasing job retry to " << dto.retry_ + 1;
-        LOG(ERROR) << ss.str();
-        dto.failed_reason_ = ss.str();
-        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, dto.failed_reason_.c_str(), dto.retry_ + 1, Saola::GetNextXSecondsFromNowInString(dto.delay_sec_).c_str()));
-        return false;
+        if (availableJobIds.size() > 0)
+        {
+          LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " AVAILABLE JOBS size= " << availableJobIds.size() << " Delete available jobs: " << boost::algorithm::join(availableJobIds, ",") << " jobs";
+          return true;
+        }
       }
-      LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " AVAILABLE JOBS size= " << availableJobIds.size() << " for queue_id=" << dto.id_ << ", jobs.size()=" << jobs.size() << " . RETURNING TRUE";
-      return true; // There is at least one job is either Pending or Running
     }
-    // Create new JOB
+
+    // No job found, create new JOB
     Json::Value body;
     PrepareBody(body, appConfig, dto);
 
@@ -402,7 +386,9 @@ static bool ProcessAsyncTask(const AppConfiguration &appConfig, StableEventDTOGe
       OrthancPlugins::WriteFastJson(s, jobResponse);
       ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " ERROR Send to API: " << appConfig.url_ << " , Failed response=" << s;
       dto.failed_reason_ = ss.str();
-      SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, dto.failed_reason_.c_str(), dto.retry_ + 1, Saola::GetNextXSecondsFromNowInString(dto.delay_sec_).c_str()));
+      std::string now = Saola::GetNextXSecondsFromNowInString(0);
+      std::string next = Saola::GetNextXSecondsFromNowInString(dto.delay_sec_);
+      SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, dto.failed_reason_.c_str(), dto.retry_ + 1, now.c_str(), next.c_str()));
 
       notification[Notification::ERROR_DETAIL] = dto.ToJsonString();
       notification[Notification::ERROR_MESSAGE] = ss.str();
@@ -419,7 +405,9 @@ static bool ProcessAsyncTask(const AppConfiguration &appConfig, StableEventDTOGe
       SaolaDatabase::Instance().SaveTransferJob(TransferJobDTOCreate(jobResponse["ID"].asString(), dto.id_), result);
       if (dto.retry_ > 0)
       {
-        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, dto.failed_reason_.c_str(), dto.retry_ + 1, Saola::GetNextXSecondsFromNowInString(dto.delay_sec_).c_str()));
+        std::string now = Saola::GetNextXSecondsFromNowInString(0);
+        std::string next = Saola::GetNextXSecondsFromNowInString(dto.delay_sec_);
+        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, dto.failed_reason_.c_str(), dto.retry_ + 1, now.c_str(), next.c_str()));
       }
 
       LOG(INFO) << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " Save JOB " << result.ToJsonString();
@@ -431,7 +419,9 @@ static bool ProcessAsyncTask(const AppConfiguration &appConfig, StableEventDTOGe
     std::stringstream ss;
     ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " ERROR EXCEPTION Orthanc::OrthancException: " << e.What();
     dto.failed_reason_ = ss.str();
-    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, dto.failed_reason_.c_str(), dto.retry_ + 1, Saola::GetNextXSecondsFromNowInString(dto.delay_sec_).c_str()));
+    std::string now = Saola::GetNextXSecondsFromNowInString(0);
+    std::string next = Saola::GetNextXSecondsFromNowInString(dto.delay_sec_);
+    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, dto.failed_reason_.c_str(), dto.retry_ + 1, now.c_str(), next.c_str()));
     LOG(ERROR) << ss.str();
     notification[Notification::ERROR_DETAIL] = dto.ToJsonString();
     notification[Notification::ERROR_MESSAGE] = ss.str();
@@ -443,7 +433,9 @@ static bool ProcessAsyncTask(const AppConfiguration &appConfig, StableEventDTOGe
     std::stringstream ss;
     ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " ERROR EXCEPTION std::exception: " << e.what();
     dto.failed_reason_ = ss.str();
-    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, dto.failed_reason_.c_str(), dto.retry_ + 1, Saola::GetNextXSecondsFromNowInString(dto.delay_sec_).c_str()));
+    std::string now = Saola::GetNextXSecondsFromNowInString(0);
+    std::string next = Saola::GetNextXSecondsFromNowInString(dto.delay_sec_);
+    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, dto.failed_reason_.c_str(), dto.retry_ + 1, now.c_str(), next.c_str()));
     LOG(ERROR) << ss.str();
     notification[Notification::ERROR_DETAIL] = dto.ToJsonString();
     notification[Notification::ERROR_MESSAGE] = ss.str();
@@ -455,7 +447,9 @@ static bool ProcessAsyncTask(const AppConfiguration &appConfig, StableEventDTOGe
     std::stringstream ss;
     ss << "[ProcessAsyncTask][Task-" << dto.id_ << "]" << " ERROR EXCEPTION occurs but no specific reason";
     dto.failed_reason_ = ss.str();
-    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, dto.failed_reason_.c_str(), dto.retry_ + 1, Saola::GetNextXSecondsFromNowInString(dto.delay_sec_).c_str()));
+    std::string now = Saola::GetNextXSecondsFromNowInString(0);
+    std::string next = Saola::GetNextXSecondsFromNowInString(dto.delay_sec_);
+    SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dto.id_, dto.failed_reason_.c_str(), dto.retry_ + 1, now.c_str(), next.c_str()));
     LOG(ERROR) << ss.str();
     notification[Notification::ERROR_DETAIL] = dto.ToJsonString();
     notification[Notification::ERROR_MESSAGE] = ss.str();
@@ -473,6 +467,7 @@ static bool ProcessSyncTask(const AppConfiguration &appConfig, StableEventDTOGet
   {
     Json::Value mainDicomTags;
     GetMainDicomTags(dto.resource_id_, Orthanc::StringToResourceType(dto.resource_type_.c_str()), mainDicomTags);
+    LOG(INFO) << "[ProcessSyncTask][Task-" << dto.id_ << "]" << " MainDicomTags=" << mainDicomTags.toStyledString();
     if (!mainDicomTags.empty())
     {
       ConstructAndSendMessage(appConfig, mainDicomTags);
@@ -541,15 +536,13 @@ static void MonitorTasks(std::list<StableEventDTOGet> &tasks)
     if (!appConfig)
     {
       LOG(ERROR) << "[MonitorTasks] ERROR Cannot find any AppConfiguration " << task.app_id_;
-      SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, "[MonitorTasks] Cannot find any AppConfiguration", SaolaConfiguration::Instance().GetMaxRetry() + 1, Saola::GetNextXSecondsFromNowInString(60).c_str()));
+      std::string now = Saola::GetNextXSecondsFromNowInString(0);
+      std::string next = Saola::GetNextXSecondsFromNowInString(60);
+      SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, "[MonitorTasks] Cannot find any AppConfiguration", SaolaConfiguration::Instance().GetMaxRetry() + 1, now.c_str(), next.c_str()));
       SaolaDatabase::Instance().DeleteTransferJobsByQueueId(task.id_);
       continue;
     }
 
-    if (!Saola::IsOverDue(task.last_updated_time_, task.delay_sec_))
-    {
-      continue;
-    }
     LOG(INFO) << "[MonitorTasks] Processing task " << task.ToJsonString();
 
     Json::Value notification;
@@ -562,7 +555,9 @@ static void MonitorTasks(std::list<StableEventDTOGet> &tasks)
     {
       if (!ProcessSyncTask(*appConfig, task, notification))
       {
-        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, task.failed_reason_.c_str(), task.retry_ + 1, Saola::GetNextXSecondsFromNowInString(task.delay_sec_).c_str()));
+        std::string now = Saola::GetNextXSecondsFromNowInString(0);
+        std::string next = Saola::GetNextXSecondsFromNowInString(task.delay_sec_);
+        SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(task.id_, task.failed_reason_.c_str(), task.retry_ + 1, now.c_str(), next.c_str()));
         Notification::Instance().SendMessage(notification);
       }
     }
@@ -599,7 +594,8 @@ void StableEventScheduler::Start()
     {
       LOG(TRACE) << "[StableEventScheduler::MonitorDatabase] Start monitoring Ris/StoreServer tasks ...";
       std::list<StableEventDTOGet> results;
-      SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, true, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), results);
+      SaolaDatabase::Instance().Dequeue(FIRST_PRIORITY_APP_TYPES, true, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), "orthanc1", results);
+      LOG(INFO) << "[StableEventScheduler::MonitorDatabase] Found " << results.size() << " tasks to process";
       MonitorTasks(results);
       for (int i = 0; i < 10; i++)
       {
@@ -616,12 +612,12 @@ void StableEventScheduler::Start()
       {
         if (InMemoryJobCache::Instance().GetSize() < SaolaConfiguration::Instance().GetInMemJobCacheLimit())
         {
-          SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), results);
+          SaolaDatabase::Instance().Dequeue(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), "orthanc1", results);
         }
       }
       else
       {
-        SaolaDatabase::Instance().FindByAppTypeInRetryLessThan(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), results);
+        SaolaDatabase::Instance().Dequeue(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), "orthanc1", results);
       }
 
       MonitorTasks(results);

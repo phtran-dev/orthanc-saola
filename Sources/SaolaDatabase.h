@@ -99,6 +99,8 @@ public:
 
   void FindByAppTypeInRetryLessThan(const std::list<std::string>& appType, bool included, int retry, int limit, std::list<StableEventDTOGet>& results);
 
+  void Dequeue(const std::list<std::string>& appTypes, bool included, int retry, int limit, const std::string& owner, std::list<StableEventDTOGet>& results);
+
   void SaveTransferJob(const TransferJobDTOCreate& dto, TransferJobDTOGet& result);
 
   // void FindAll(const Pagination& page, const FailedJobFilter& filter, std::list<FailedJobDTOGet>& results);

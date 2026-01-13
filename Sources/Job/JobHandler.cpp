@@ -77,12 +77,23 @@ namespace Saola
         StableEventDTOGet dtoGet;
         if (SaolaDatabase::Instance().GetById(dto.queue_id_, dtoGet))
         {
+
           dtoGet.retry_ += 1;
           LOG(INFO) << "[OnJobFailure] Updating queue " << dtoGet.ToJsonString();
-          SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dtoGet.id_, "Callback OnJobFailure triggered", dtoGet.retry_, Saola::GetNextXSecondsFromNowInString(dtoGet.delay_sec_).c_str()));
+          // Try to get JOB from Orthanc
+          Json::Value job;
+          OrthancPlugins::RestApiGet(job, "/jobs/" + jobId, false);
+          std::string jobError = "Job Failure for queue_id=" + std::to_string(dto.queue_id_) + ", jobId=" + jobId + ", increasing retry to " + std::to_string(dtoGet.retry_);
+          if (!job.empty() && !job.isNull())
+          {
+            OrthancPlugins::WriteFastJson(jobError, job);
+          }
+
+          std::string now = Saola::GetNextXSecondsFromNowInString(0);
+          std::string next = Saola::GetNextXSecondsFromNowInString(dtoGet.delay_sec_);
+          SaolaDatabase::Instance().UpdateEvent(StableEventDTOUpdate(dtoGet.id_, jobError.c_str(), dtoGet.retry_, now.c_str(), next.c_str(), "PENDING"));
           Json::Value notification;
-          notification[ERROR_DETAIL] = dto.ToJsonString();
-          notification[ERROR_MESSAGE] = "Job Failure for queue_id=" + std::to_string(dto.queue_id_) + ", jobId=" + jobId + ", increasing retry to " + std::to_string(dtoGet.retry_);
+          notification[ERROR_MESSAGE] = jobError;
           Notification::Instance().SendMessage(notification);
         }
         else
