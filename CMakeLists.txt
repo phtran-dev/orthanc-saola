@@ -143,6 +143,9 @@ add_library(OrthancSaola SHARED
   Sources/Database/RQLite.cpp
   Sources/Database/AppConfigDatabase.cpp
   Sources/Config/SaolaConfiguration.cpp
+  Sources/Config/SaolaConfiguration.cpp
+  Sources/Database/SQLiteDatabaseBackend.cpp
+  Sources/Database/RQLiteDatabaseBackend.cpp
   Sources/SaolaDatabase.cpp
   Sources/Cache/InMemoryJobCache.cpp
   Sources/Scheduler/RemoveFileScheduler.cpp

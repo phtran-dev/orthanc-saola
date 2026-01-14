@@ -115,10 +115,10 @@ extern "C"
     try
     {
       OrthancPlugins::OrthancConfiguration configuration;
-      LOG(WARNING) << "Path to the database of the Saola plugin: " << SaolaConfiguration::Instance().GetDbPath();
-      boost::filesystem::path dbPath = SaolaConfiguration::Instance().GetDbPath();
-      Orthanc::SystemToolbox::MakeDirectory(dbPath.parent_path().string());
-      SaolaDatabase::Instance().Open(SaolaConfiguration::Instance().GetDbPath());
+      LOG(WARNING) << "SaolaDatabase URL: " << SaolaConfiguration::Instance().GetDataSourceUrl();
+      // boost::filesystem::path dbPath = SaolaConfiguration::Instance().GetDbPath();
+      // Orthanc::SystemToolbox::MakeDirectory(dbPath.parent_path().string());
+      SaolaDatabase::Instance().Open(SaolaConfiguration::Instance().GetDataSourceUrl());
 
       RegisterRestEndpoint();
 

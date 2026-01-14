@@ -44,6 +44,9 @@ private:
 
   int appConfigDataSourcePollingInterval_ = 30; // In second(s)
 
+  std::string dataSourceDriver_ = "org.sqlite.Driver";
+  std::string dataSourceUrl_ = "";
+
   SaolaConfiguration(/* args */);
 
 public:
@@ -108,10 +111,6 @@ public:
     return this->databaseServerIdentifier_;
   }
 
-  const std::string& GetDbPath() const
-  {
-    return this->dbPath_;
-  }
 
   const bool EnableInMemJobCache() const
   {
@@ -142,5 +141,22 @@ public:
   {
     return this->appConfigDataSourcePollingInterval_;
   }
+
+  const std::string& GetDataSourceDriver() const
+  {
+    return this->dataSourceDriver_;
+  }
+
+  const std::string& GetDataSourceUrl() const
+  {
+    return this->dataSourceUrl_;
+  }
+
+  std::string GetDatabaseDriver() const
+  {
+    return (dataSourceDriver_ == "io.rqlite.Driver") ? "rqlite" : "sqlite";
+  }
+
+
 
 };

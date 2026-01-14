@@ -14,7 +14,9 @@
 #include <list>
 
 #include <OrthancFramework.h>  // To have ORTHANC_ENABLE_SQLITE defined
-#include <SQLite/Connection.h>
+#include "Database/IDatabaseBackend.h"
+#include <memory>
+#include "Database/DatabaseDefinitions.h"
 
 #include <boost/noncopyable.hpp>
 #include <boost/thread/mutex.hpp>
@@ -23,31 +25,8 @@
 
 class SaolaDatabase : public boost::noncopyable
 {
-public:
-  enum FileStatus
-  {
-    FileStatus_New,
-    FileStatus_Modified,
-    FileStatus_AlreadyStored,
-    FileStatus_NotDicom
-  };
-
-  class IFileVisitor : public boost::noncopyable
-  {
-  public:
-    virtual ~IFileVisitor()
-    {
-    }
-
-    virtual void VisitInstance(const std::string& path,
-                               bool isDicom,
-                               const std::string& instanceId) = 0;
-  };  
-
-
 private:
-  boost::mutex                 mutex_;
-  Orthanc::SQLite::Connection  db_;
+  std::unique_ptr<Saola::IDatabaseBackend> backend_;
   
   void Initialize();
 
@@ -57,9 +36,6 @@ private:
                        bool isDicom,
                        const std::string& instanceId);
 
-  SaolaDatabase()
-  {}
-
 public:
 
   static SaolaDatabase& Instance();
@@ -68,19 +44,6 @@ public:
 
   void OpenInMemory();  // For unit tests
 
-  FileStatus LookupFile(std::string& oldInstanceId,
-                        const std::string& path,
-                        const std::time_t time,
-                        const uintmax_t size);
-
-
-  // Warning: The visitor is invoked in mutual exclusion, so it
-  // shouldn't do lengthy operations
-  void Apply(IFileVisitor& visitor);
-
-  // Returns "false" iff. this instance has not been previously
-  // registerded using "AddDicomInstance()", which indicates the
-  // import of an external DICOM file
   int64_t AddEvent(const StableEventDTOCreate& obj);
 
   bool DeleteEventByIds(const std::list<int64_t>& ids);

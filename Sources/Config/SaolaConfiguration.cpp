@@ -33,8 +33,43 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->databaseServerIdentifier_ = OrthancPluginGetDatabaseServerIdentifier(OrthancPlugins::GetGlobalContext());
   std::string pathStorage = configuration.GetStringValue(STORAGE_DIRECTORY, ORTHANC_STORAGE);
   LOG(WARNING) << "SaolaConfiguration - Path to the storage area: " << pathStorage;
-  boost::filesystem::path defaultDbPath = boost::filesystem::path(pathStorage) / (DB_NAME + "." + databaseServerIdentifier_ + ".db");
-  this->dbPath_ = saola.GetStringValue("Path", defaultDbPath.string());
+  this->dataSourceDriver_ = saola.GetStringValue("DataSource.Driver", "org.sqlite.Driver");
+  this->dataSourceUrl_ = saola.GetStringValue("DataSource.Url", "");
+  
+  // Determine driver type for factory
+  if (this->dataSourceDriver_ == "io.rqlite.Driver")
+  {
+     // RQLite
+     if (!this->dataSourceUrl_.empty() && !boost::starts_with(this->dataSourceUrl_, "jdbc:rqlite:"))
+     {
+        throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange, 
+              "SaolaConfiguration: io.rqlite.Driver requires DataSource.Url to start with 'jdbc:rqlite:'");
+     }
+  }
+  else
+  {
+    // SQLite
+    if (!this->dataSourceUrl_.empty())
+    {
+       if (boost::starts_with(this->dataSourceUrl_, "jdbc:") && !boost::starts_with(this->dataSourceUrl_, "jdbc:sqlite:"))
+       {
+           throw Orthanc::OrthancException(Orthanc::ErrorCode_ParameterOutOfRange, 
+              "SaolaConfiguration: org.sqlite.Driver requires DataSource.Url to start with 'jdbc:sqlite:' or be a file path");
+       }
+    }
+
+    // If DataSource.Url is empty, fallback to old logic for default dbPath
+    if (this->dataSourceUrl_.empty())
+    {
+       boost::filesystem::path defaultDbPath = boost::filesystem::path(pathStorage) / (DB_NAME + "." + databaseServerIdentifier_ + ".db");
+       std::string path = saola.GetStringValue("Path", defaultDbPath.string());
+       // Construct a DataSourceUrl from this for consistency
+       this->dataSourceUrl_ = "jdbc:sqlite:" + path;
+    }
+  }
+
+  // Legacy support cleanup
+  // We don't populate rqliteUrl_ h
 
   this->enableInMemJobCache_ = saola.GetBooleanValue("EnableInMemJobCache", false);
   this->inMemJobCacheLimit_ = saola.GetIntegerValue("InMemJobCacheLimit", 100);
@@ -262,8 +297,11 @@ void SaolaConfiguration::ToJson(Json::Value &json)
   json["ThrottleDelayMs"] = this->throttleDelayMs_;
   json["Root"] = this->root_;
   json["DatabaseServerIdentifier"] = this->databaseServerIdentifier_;
-  json["DbPath"] = this->dbPath_;
+  json["DbPath"] = ""; // Deprecated
   json["PollingDBIntervalInSeconds"] = this->pollingDBIntervalInSeconds_;
+  json["PollingDBIntervalInSeconds"] = this->pollingDBIntervalInSeconds_;
+  json["DataSource.Driver"] = this->dataSourceDriver_;
+  json["DataSource.Url"] = this->dataSourceUrl_;
 
   json["Apps"] = Json::arrayValue;
 
