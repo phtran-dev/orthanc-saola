@@ -1,4 +1,5 @@
 #include "SaolaConfiguration.h"
+#include "AppConfiguration.h"
 #include "AppConfigRepository.h"
 
 #include "../Constants.h"
@@ -78,6 +79,31 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
     this->inMemJobTypes_.insert("Exporter");
   }
   this->pollingDBIntervalInSeconds_ = saola.GetIntegerValue("PollingDBInSeconds", 30);
+  
+  this->defaultJobLockDuration_ = saola.GetIntegerValue("JobLockDurationSeconds", 3600);
+
+  // Adding default values
+
+  this->jobLockDurations_[AppConfiguration::Ris] = 5;
+  this->jobLockDurations_[AppConfiguration::StoreServer] = 5;
+  this->jobLockDurations_[AppConfiguration::Transfer] = 15 * 60;
+  this->jobLockDurations_[AppConfiguration::Exporter] = 15 * 60;
+  this->jobLockDurations_[AppConfiguration::StoreSCU] = 15 * 60;
+  // Override if exists in json config
+  // Like : "JobLockDurations": [{ "Ris": 5}, { "StoreServer": 5}, { "Transfer": 15 * 60}, { "Exporter": 15 * 60 }]
+  if (saola.GetJson().isMember("JobLockDurations"))
+  {
+    for (auto &valueMap : saola.GetJson()["JobLockDurations"])
+    {
+      for (Json::ValueConstIterator it = valueMap.begin(); it != valueMap.end(); ++it)
+      {
+        if (it->isInt())
+        {
+           this->jobLockDurations_[it.key().asString()] = it->asInt();
+        }
+      }
+    }
+  }
 }
 
 SaolaConfiguration &SaolaConfiguration::Instance()
@@ -108,6 +134,13 @@ void SaolaConfiguration::ToJson(Json::Value &json)
   json["PollingDBIntervalInSeconds"] = this->pollingDBIntervalInSeconds_;
   json["DataSource.Driver"] = this->dataSourceDriver_;
   json["DataSource.Url"] = this->dataSourceUrl_;
+  json["JobLockDurationSeconds"] = this->defaultJobLockDuration_;
+  
+  json["JobLockDurations"] = Json::objectValue;
+  for (const auto& item : this->jobLockDurations_)
+  {
+      json["JobLockDurations"][item.first] = item.second;
+  }
 
   json["Apps"] = Json::arrayValue;
   auto apps = Saola::AppConfigRepository::Instance().GetAll();

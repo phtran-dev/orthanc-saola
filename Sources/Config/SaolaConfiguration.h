@@ -21,6 +21,10 @@ private:
   std::set<std::string> inMemJobTypes_;
 
   int throttleExpirationDays_;
+  
+  int defaultJobLockDuration_ = 3600;
+  
+  std::map<std::string, int> jobLockDurations_;
 
   int maxRetry_ = 5;
 
@@ -46,6 +50,26 @@ public:
   static SaolaConfiguration& Instance();
 
   void ToJson(Json::Value& json);
+
+  int GetJobLockDuration(const std::string& appType) const
+  {
+    auto it = jobLockDurations_.find(appType);
+    if (it != jobLockDurations_.end())
+    {
+      return it->second;
+    }
+    return defaultJobLockDuration_;
+  }
+  
+  const std::map<std::string, int>& GetJobLockDurations() const
+  {
+      return jobLockDurations_;
+  }
+  
+  int GetDefaultJobLockDuration() const 
+  {
+      return defaultJobLockDuration_;
+  }
 
   bool IsEnabled() const
   {

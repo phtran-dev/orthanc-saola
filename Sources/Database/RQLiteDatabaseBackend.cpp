@@ -477,11 +477,13 @@
                           "(status='PROCESSING' AND expiration_time < ?) "
                         ")";
           
+          int lockDuration = SaolaConfiguration::Instance().GetJobLockDuration(candidate.app_type_);
+          
           rqlite::SQLStatement stmt;
           stmt.sql = updateSql;
           stmt.positionalParams.push_back(owner);
           stmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(0));
-          stmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(3600)); // Claim for 1 hour
+          stmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(lockDuration)); // Claim dynamically
           stmt.positionalParams.push_back(static_cast<int64_t>(candidate.id_)); // Use int64 for ID
           
           // Re-check conditions to ensure atomic claim
@@ -504,10 +506,11 @@
             if (res.rowsAffected > 0)
             {
                 // Successfully claimed
+                int lockDuration = SaolaConfiguration::Instance().GetJobLockDuration(candidates[i].app_type_);
                 candidates[i].status_ = "PROCESSING";
                 candidates[i].owner_id_ = owner;
                 candidates[i].last_updated_time_ = Saola::GetNextXSecondsFromNowInString(0); // Approximate
-                candidates[i].expiration_time_ = Saola::GetNextXSecondsFromNowInString(3600); // Approximate
+                candidates[i].expiration_time_ = Saola::GetNextXSecondsFromNowInString(lockDuration); // Approximate
                 results.push_back(candidates[i]);
             }
             i++;

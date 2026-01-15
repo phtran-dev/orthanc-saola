@@ -13,6 +13,8 @@
 
 struct AppConfiguration
 {
+  static constexpr const char* Ris = "Ris";
+  static constexpr const char* StoreServer = "StoreServer";
   static constexpr const char* Transfer = "Transfer";
   static constexpr const char* Exporter = "Exporter";
   static constexpr const char* StoreSCU = "StoreSCU";

@@ -862,6 +862,7 @@ void DeleteStudyResource(OrthancPluginRestOutput *output,
   }
 
   std::string studyInstanceUID = request->groups[0];
+  LOG(INFO) << "[DeleteStudyResource] Deleting studyInstanceUID " + studyInstanceUID;
 
   Json::Value studyResources;
   {
@@ -1299,6 +1300,7 @@ void SplitStudy(OrthancPluginRestOutput *output,
 
 void RegisterRestEndpoint()
 {
+  OrthancPlugins::RegisterRestCallback<GetPluginConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/configuration", true);
   OrthancPlugins::RegisterRestCallback<GetCreateAppConfigurations>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/appconfigurations", true);
   OrthancPlugins::RegisterRestCallback<GetDeleteAppConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/appconfigurations/([^/]*)", true);
 

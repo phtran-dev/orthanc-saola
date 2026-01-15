@@ -1,4 +1,5 @@
 #include "SQLiteDatabaseBackend.h"
+#include "../Config/SaolaConfiguration.h"
 #include "../TimeUtil.h"
 
 #include <Logging.h>
@@ -524,8 +525,15 @@ namespace Saola
     }
     inClause += ")";
 
+    std::string expirationCase = "CASE app_type ";
+    const auto& durations = SaolaConfiguration::Instance().GetJobLockDurations();
+    for (size_t i = 0; i < durations.size(); i++) {
+        expirationCase += "WHEN ? THEN ? ";
+    }
+    expirationCase += "ELSE ? END";
+
     std::string sql = "UPDATE StableEventQueues "
-                      "SET status='PROCESSING', owner_id=?, last_updated_time=?, expiration_time=? "
+                      "SET status='PROCESSING', owner_id=?, last_updated_time=?, expiration_time=" + expirationCase + " "
                       "WHERE id IN ("
                         "SELECT id FROM StableEventQueues "
                         "WHERE "
@@ -548,7 +556,12 @@ namespace Saola
     
     statement.BindString(paramIndex++, owner);
     statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(0));
-    statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(3600));
+    
+    for (const auto& item : durations) {
+       statement.BindString(paramIndex++, item.first);
+       statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(item.second));
+    }
+    statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(SaolaConfiguration::Instance().GetDefaultJobLockDuration()));
 
     statement.BindString(paramIndex++, owner);
     statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(0));
