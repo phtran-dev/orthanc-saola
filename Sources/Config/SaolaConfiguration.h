@@ -36,14 +36,6 @@ private:
 
   int pollingDBIntervalInSeconds_ = 30; // 30 seconds
 
-  std::map<std::string, std::shared_ptr<AppConfiguration>> apps_;
-
-  std::string appConfigDataSourceUrl_ = "";
-
-  int appConfigDataSourceTimeout_ = 1; // In second(s)
-
-  int appConfigDataSourcePollingInterval_ = 30; // In second(s)
-
   std::string dataSourceDriver_ = "org.sqlite.Driver";
   std::string dataSourceUrl_ = "";
 
@@ -53,22 +45,7 @@ public:
 
   static SaolaConfiguration& Instance();
 
-  const std::shared_ptr<AppConfiguration> GetAppConfigurationById(const std::string& id) const;
-
-  void GetApps(std::map<std::string, std::shared_ptr<AppConfiguration>>&) const;
-
-  void ApplyConfigurations(const Json::Value& appConfigs, bool clear);
-
-  void UpdateConfiguration(const Json::Value& config);
-
   void ToJson(Json::Value& json);
-
-  void EraseApps()
-  {
-    this->apps_.clear();
-  }
-
-  void RemoveApp(const std::string& appId);
 
   bool IsEnabled() const
   {
@@ -127,21 +104,6 @@ public:
     return this->inMemJobTypes_;
   }
 
-  const std::string& GetAppConfigDataSourceUrl() const
-  {
-    return this->appConfigDataSourceUrl_;
-  }
-
-  int GetAppConfigDataSourceTimeout() const
-  {
-    return this->appConfigDataSourceTimeout_;
-  }
-
-  int GetppConfigDataSourcePollingInterval() const
-  {
-    return this->appConfigDataSourcePollingInterval_;
-  }
-
   const std::string& GetDataSourceDriver() const
   {
     return this->dataSourceDriver_;
@@ -156,7 +118,5 @@ public:
   {
     return (dataSourceDriver_ == "io.rqlite.Driver") ? "rqlite" : "sqlite";
   }
-
-
 
 };

@@ -16,7 +16,6 @@
 #include <OrthancFramework.h>  // To have ORTHANC_ENABLE_SQLITE defined
 #include "Database/IDatabaseBackend.h"
 #include <memory>
-#include "Database/DatabaseDefinitions.h"
 
 #include <boost/noncopyable.hpp>
 #include <boost/thread/mutex.hpp>

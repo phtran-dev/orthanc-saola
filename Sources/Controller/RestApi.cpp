@@ -10,7 +10,7 @@
 
 #include "../Cache/InMemoryJobCache.h"
 
-#include "../Database/AppConfigDatabase.h"
+#include "../Config/AppConfigRepository.h"
 
 #include <Toolbox.h>
 #include <Logging.h>
@@ -110,6 +110,7 @@ namespace
 
 }
 
+
 static void GetPluginConfiguration(OrthancPluginRestOutput *output,
                                    const char *url,
                                    const OrthancPluginHttpRequest *request)
@@ -127,51 +128,26 @@ static void GetPluginConfiguration(OrthancPluginRestOutput *output,
   OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
 }
 
-static void GetAppConfiguration(OrthancPluginRestOutput *output,
-                                const char *url,
-                                const OrthancPluginHttpRequest *request)
+
+static void GetAppConfigurations(OrthancPluginRestOutput *output,
+                                 const char *url,
+                                 const OrthancPluginHttpRequest *request)
 {
-  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
-  if (request->method != OrthancPluginHttpMethod_Get)
-  {
-    OrthancPluginSendMethodNotAllowed(context, output, "GET");
-    return;
-  }
-
-  std::string appId{request->groups[0]};
-  Json::Value appConfig;
-  Saola::AppConfigDatabase::Instance().GetAppConfigById(appConfig, appId);
-
-  std::string s = appConfig.toStyledString();
-  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+  Json::Value answer;
+  Saola::AppConfigRepository::Instance().GetAll(answer);
+  std::string s = answer.toStyledString();
+  OrthancPluginAnswerBuffer(OrthancPlugins::GetGlobalContext(), output, s.c_str(), s.size(), "application/json");
 }
 
-static void DeleteAppConfiguration(OrthancPluginRestOutput *output,
-  const char *url,
-  const OrthancPluginHttpRequest *request)
+static void SaveAppConfiguration(OrthancPluginRestOutput *output,
+                                 const char *url,
+                                 const OrthancPluginHttpRequest *request)
 {
   OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
-  if (request->method != OrthancPluginHttpMethod_Delete)
-  {
-  OrthancPluginSendMethodNotAllowed(context, output, "DELETE");
-  return;
-  }
 
-  std::string appId{request->groups[0]};
-  SaolaConfiguration::Instance().RemoveApp(appId);
-
-  std::string s = "{}";
-  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
-}
-
-static void ApplyPluginConfiguration(OrthancPluginRestOutput *output,
-                                     const char *url,
-                                     const OrthancPluginHttpRequest *request)
-{
-  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
   if (request->method != OrthancPluginHttpMethod_Post)
   {
-    return OrthancPluginSendMethodNotAllowed(context, output, "Post");
+    return OrthancPluginSendMethodNotAllowed(context, output, "POST");
   }
 
   Json::Value appConfigs;
@@ -242,13 +218,67 @@ static void ApplyPluginConfiguration(OrthancPluginRestOutput *output,
     }
   }
 
-  SaolaConfiguration::Instance().ApplyConfigurations(appConfigs, false);
+  for (const auto& config : appConfigs)
+  {
+    Saola::AppConfigRepository::Instance().Save(AppConfiguration(config));
+  }
 
   Json::Value answer;
   SaolaConfiguration::Instance().ToJson(answer);
   std::string s = answer.toStyledString();
-  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+  OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");  
+
 }
+
+
+static void GetCreateAppConfigurations(OrthancPluginRestOutput *output,
+                                       const char *url,
+                                       const OrthancPluginHttpRequest *request)
+{
+
+  if (request->method == OrthancPluginHttpMethod_Get)
+  {
+    GetAppConfigurations(output, url, request);
+  }
+  else if (request->method == OrthancPluginHttpMethod_Post)
+  {
+    SaveAppConfiguration(output, url, request);
+  }
+  else
+  {
+    return OrthancPluginSendMethodNotAllowed(OrthancPlugins::GetGlobalContext(), output, "POST, PUT, GET");
+  }
+}
+
+static void GetDeleteAppConfiguration(OrthancPluginRestOutput *output,
+                                      const char *url,
+                                      const OrthancPluginHttpRequest *request)
+{
+  OrthancPluginContext *context = OrthancPlugins::GetGlobalContext();
+
+  std::string appId{request->groups[0]};
+
+  LOG(INFO) << "[GetDeleteAppConfiguration] appId: " << appId;
+
+  if (request->method == OrthancPluginHttpMethod_Get)
+  {
+    Json::Value answer;
+    Saola::AppConfigRepository::Instance().Get(appId, answer);
+    std::string s = answer.toStyledString();
+    OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+  }
+  else if (request->method == OrthancPluginHttpMethod_Delete)
+  {
+    Saola::AppConfigRepository::Instance().Delete(appId);
+    std::string s = "{}";
+    OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+  }
+  else
+  {
+    return OrthancPluginSendMethodNotAllowed(OrthancPlugins::GetGlobalContext(), output, "POST, PUT, GET");
+  }
+}
+
 
 static void GetStableEventByIds(OrthancPluginRestOutput *output,
                                 const char *url,
@@ -436,7 +466,7 @@ static void SaveStableEvent(OrthancPluginRestOutput *output,
     return;
   }
 
-  std::shared_ptr<AppConfiguration> app = SaolaConfiguration::Instance().GetAppConfigurationById(requestBody["app"].asString());
+  std::shared_ptr<AppConfiguration> app = Saola::AppConfigRepository::Instance().Get(requestBody["app"].asString());
   if (!app)
   {
     LOG(ERROR) << "[SaveStableEvent] ERROR Cannot find any AppConfiguration " << requestBody["app"].asString();
@@ -491,7 +521,7 @@ static void ExecuteStableEvents(OrthancPluginRestOutput *output,
     return;
   }
 
-  std::shared_ptr<AppConfiguration> app = SaolaConfiguration::Instance().GetAppConfigurationById(requestBody["app"].asString());
+  std::shared_ptr<AppConfiguration> app = Saola::AppConfigRepository::Instance().Get(requestBody["app"].asString());
   if (!app)
   {
     LOG(ERROR) << "[ExecuteStableEvents] ERROR Cannot find any AppConfiguration " << requestBody["app"].asString();
@@ -1269,11 +1299,9 @@ void SplitStudy(OrthancPluginRestOutput *output,
 
 void RegisterRestEndpoint()
 {
-  OrthancPlugins::RegisterRestCallback<GetAppConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/configuration/apps/([^/]*)", true);
-  OrthancPlugins::RegisterRestCallback<DeleteAppConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/configuration/delete-apps/([^/]*)", true);
+  OrthancPlugins::RegisterRestCallback<GetCreateAppConfigurations>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/appconfigurations", true);
+  OrthancPlugins::RegisterRestCallback<GetDeleteAppConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/appconfigurations/([^/]*)", true);
 
-  OrthancPlugins::RegisterRestCallback<GetPluginConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/configuration", true);
-  OrthancPlugins::RegisterRestCallback<ApplyPluginConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/configuration/apply", true);
   OrthancPlugins::RegisterRestCallback<HandleStableEvents>(SaolaConfiguration::Instance().GetRoot() + "event-queues", true);
   OrthancPlugins::RegisterRestCallback<DeleteStableEvents>(SaolaConfiguration::Instance().GetRoot() + "delete-event-queues", true);
   OrthancPlugins::RegisterRestCallback<ResetStableEvents>(SaolaConfiguration::Instance().GetRoot() + "reset-event-queues", true);

@@ -20,7 +20,7 @@ cmake_minimum_required(VERSION 2.8)
 project(OrthancSaola)
 
 set(ORTHANC_PLUGIN_NAME "orthanc-saola")
-set(ORTHANC_PLUGIN_VERSION "1.6.2")
+set(ORTHANC_PLUGIN_VERSION "1.6.3")
 
 if (ORTHANC_PLUGIN_VERSION STREQUAL "mainline")
   set(ORTHANC_FRAMEWORK_DEFAULT_VERSION "mainline")
@@ -141,16 +141,14 @@ add_custom_target(
 add_library(OrthancSaola SHARED
   Resources/Orthanc/Plugins/OrthancPluginCppWrapper.cpp
   Sources/Database/RQLite.cpp
-  Sources/Database/AppConfigDatabase.cpp
-  Sources/Config/SaolaConfiguration.cpp
-  Sources/Config/SaolaConfiguration.cpp
-  Sources/Database/SQLiteDatabaseBackend.cpp
   Sources/Database/RQLiteDatabaseBackend.cpp
+  Sources/Database/SQLiteDatabaseBackend.cpp
+  Sources/Config/SaolaConfiguration.cpp
+  Sources/Config/AppConfigRepository.cpp
   Sources/SaolaDatabase.cpp
   Sources/Cache/InMemoryJobCache.cpp
   Sources/Scheduler/RemoveFileScheduler.cpp
   Sources/Scheduler/StableEventScheduler.cpp
-  Sources/Scheduler/PollingDBScheduler.cpp
   Sources/Notification/Notification.cpp
   Sources/Controller/RestApi.cpp
   Sources/Job/ExporterJob.cpp

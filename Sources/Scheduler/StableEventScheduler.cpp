@@ -11,6 +11,8 @@
 #include "../DTO/MainDicomTags.h"
 #include "../Config/SaolaConfiguration.h"
 #include "../Constants.h"
+#include "../Config/AppConfigRepository.h"
+
 
 #include "../Notification/Notification.h"
 #include "../Config/AppConfiguration.h"
@@ -512,28 +514,28 @@ static bool ProcessSyncTask(const AppConfiguration &appConfig, StableEventDTOGet
 
 bool StableEventScheduler::ExecuteEvent(StableEventDTOGet &event)
 {
-  std::shared_ptr<AppConfiguration> appConfig = SaolaConfiguration::Instance().GetAppConfigurationById(event.app_id_);
-  if (!appConfig)
+  std::shared_ptr<AppConfiguration> appConfigPtr = Saola::AppConfigRepository::Instance().Get(event.app_id_);
+  if (!appConfigPtr)
   {
     LOG(ERROR) << "[ExecuteEvent] ERROR Cannot find any AppConfiguration " << event.app_id_;
     return false;
   }
 
   Json::Value notification;
-  if (appConfig->type_ == AppConfiguration::Transfer || appConfig->type_ == AppConfiguration::Exporter || appConfig->type_ == AppConfiguration::StoreSCU)
+  if (appConfigPtr->type_ == AppConfiguration::Transfer || appConfigPtr->type_ == AppConfiguration::Exporter || appConfigPtr->type_ == AppConfiguration::StoreSCU)
   {
-    return ProcessAsyncTask(*appConfig, event, notification);
+    return ProcessAsyncTask(*appConfigPtr, event, notification);
   }
 
-  return ProcessSyncTask(*appConfig, event, notification);
+  return ProcessSyncTask(*appConfigPtr, event, notification);
 }
 
 static void MonitorTasks(std::list<StableEventDTOGet> &tasks)
 {
   for (auto &task : tasks)
   {
-    std::shared_ptr<AppConfiguration> appConfig = SaolaConfiguration::Instance().GetAppConfigurationById(task.app_id_);
-    if (!appConfig)
+    std::shared_ptr<AppConfiguration> appConfigPtr = Saola::AppConfigRepository::Instance().Get(task.app_id_);
+    if (!appConfigPtr)
     {
       LOG(ERROR) << "[MonitorTasks] ERROR Cannot find any AppConfiguration " << task.app_id_;
       std::string now = Saola::GetNextXSecondsFromNowInString(0);
@@ -547,13 +549,13 @@ static void MonitorTasks(std::list<StableEventDTOGet> &tasks)
 
     Json::Value notification;
     notification[Notification::ERROR_MESSAGE] = "";
-    if (appConfig->type_ == AppConfiguration::Transfer || appConfig->type_ == AppConfiguration::Exporter || appConfig->type_ == AppConfiguration::StoreSCU)
+    if (appConfigPtr->type_ == AppConfiguration::Transfer || appConfigPtr->type_ == AppConfiguration::Exporter || appConfigPtr->type_ == AppConfiguration::StoreSCU)
     {
-      ProcessAsyncTask(*appConfig, task, notification);
+      ProcessAsyncTask(*appConfigPtr, task, notification);
     }
     else
     {
-      if (!ProcessSyncTask(*appConfig, task, notification))
+      if (!ProcessSyncTask(*appConfigPtr, task, notification))
       {
         std::string now = Saola::GetNextXSecondsFromNowInString(0);
         std::string next = Saola::GetNextXSecondsFromNowInString(task.delay_sec_);

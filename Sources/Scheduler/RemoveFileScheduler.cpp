@@ -2,6 +2,7 @@
 #include "../SaolaDatabase.h"
 #include "../TimeUtil.h"
 #include "../Config/SaolaConfiguration.h"
+#include "../Config/AppConfigRepository.h"
 
 #include "../../Resources/Orthanc/Plugins/OrthancPluginCppWrapper.h"
 
@@ -179,8 +180,7 @@ void RemoveFileScheduler::Start()
 
   std::map<std::string, int> directories;
 
-  std::map<std::string, std::shared_ptr<AppConfiguration>> appConfigMap;
-  SaolaConfiguration::Instance().GetApps(appConfigMap);
+  std::map<std::string, std::shared_ptr<AppConfiguration>> appConfigMap = Saola::AppConfigRepository::Instance().GetAll();
 
   for (const auto &app : appConfigMap)
   {

@@ -156,26 +156,54 @@ struct AppConfiguration
       this->fieldMapping_[std::string(Series) + "_contrastBolusAgent"] = Series_ContrastBolusAgent;
     }
     
-
-
     if (appConfig["FieldMappingOverwrite"].asBool())
     {
       this->fieldMapping_.clear();
     }
 
-    for (auto &valueMap : appConfig["FieldMapping"])
+    if (appConfig.isMember("FieldMapping"))
     {
-      for (Json::ValueConstIterator it = valueMap.begin(); it != valueMap.end(); ++it)
+      if (appConfig["FieldMapping"].isArray())
       {
-        this->fieldMapping_[it.key().asString()] = *it;
+        for (auto &valueMap : appConfig["FieldMapping"])
+        {
+          for (Json::ValueConstIterator it = valueMap.begin(); it != valueMap.end(); ++it)
+          {
+            this->fieldMapping_[it.key().asString()] = *it;
+          }
+        }
+      }
+      else if (appConfig["FieldMapping"].isObject())
+      {
+        for (Json::ValueConstIterator it = appConfig["FieldMapping"].begin(); it != appConfig["FieldMapping"].end(); ++it)
+        {
+          this->fieldMapping_[it.key().asString()] = *it;
+        }
       }
     }
 
-    for (auto &valueMap : appConfig["FieldValues"])
+    if (appConfig.isMember("FieldValues"))
     {
-      for (const auto &memberName : valueMap.getMemberNames())
+      if (appConfig["FieldValues"].isArray())
       {
-        this->fieldValues_[memberName] = valueMap[memberName.c_str()];
+        // This is for the case setting in json file as Orthanc Configuration is not able to read the Object type
+        // Example
+        // "FieldValues": [{"Peer": "LongTermPeer"}, {"Compression": "none"}] 
+        this->fieldValues_.clear();
+        for (auto &valueMap : appConfig["FieldValues"])
+        {
+          for (const auto &memberName : valueMap.getMemberNames())
+          {
+            this->fieldValues_[memberName] = valueMap[memberName.c_str()];
+          }
+        }
+      }
+      else if (appConfig["FieldValues"].isObject())
+      {
+        // This is for RestAPI response , for example from RQLITE
+        // Example
+        // "FieldValues": {"Peer": "LongTermPeer", "Compression": "none"}
+        this->fieldValues_ = appConfig["FieldValues"];
       }
     }
   }
