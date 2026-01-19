@@ -90,7 +90,7 @@ SaolaConfiguration::SaolaConfiguration(/* args */)
   this->jobLockDurations_[AppConfiguration::Exporter] = 15 * 60;
   this->jobLockDurations_[AppConfiguration::StoreSCU] = 15 * 60;
   // Override if exists in json config
-  // Like : "JobLockDurations": [{ "Ris": 5}, { "StoreServer": 5}, { "Transfer": 15 * 60}, { "Exporter": 15 * 60 }]
+  // Like : "JobLockDurations": [{ "Ris": 5}, { "StoreServer": 5}, { "Transfer": 900}, { "Exporter": 900 }, { "StoreSCU": 900 }]
   if (saola.GetJson().isMember("JobLockDurations"))
   {
     for (auto &valueMap : saola.GetJson()["JobLockDurations"])
