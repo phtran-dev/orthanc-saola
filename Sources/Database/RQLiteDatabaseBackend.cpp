@@ -217,26 +217,24 @@
     {
       if (ids.empty())
       {
-        std::string sql = "UPDATE StableEventQueues SET failed_reason=?, retry=?, last_updated_time=?";
+        std::string sql = "UPDATE StableEventQueues SET status='PENDING', owner_id=NULL, failed_reason='Reset', retry=0, last_updated_time=?, next_scheduled_time=?, expiration_time=NULL";
         rqlite::ExecuteResponse resp = rqliteClient_->executeSingle(sql,
-          "Reset",
-          0,
-          boost::posix_time::to_iso_string(Saola::GetNow())
+          Saola::GetNextXSecondsFromNowInString(0),
+          Saola::GetNextXSecondsFromNowInString(90)
         );
         return !resp.hasError();
       }
       else
       {
-        std::string sql = "UPDATE StableEventQueues SET failed_reason=?, retry=?, last_updated_time=? WHERE id IN (";
+        std::string sql = "UPDATE StableEventQueues SET status='PENDING', owner_id=NULL, failed_reason='Reset', retry=0, last_updated_time=?, next_scheduled_time=?, expiration_time=NULL WHERE id IN (";
         for (size_t i = 0; i < ids.size(); i++) {
             sql += (i > 0) ? ",?" : "?";
         }
         sql += ")";
         
         rqlite::SQLStatement stmt(sql);
-        stmt.positionalParams.push_back("Reset");
-        stmt.positionalParams.push_back(0);
-        stmt.positionalParams.push_back(boost::posix_time::to_iso_string(Saola::GetNow()));
+        stmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(0));
+        stmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(90));
         
         for (const auto& id : ids)
         {
@@ -410,111 +408,111 @@
 
     void RQLiteDatabaseBackend::Dequeue(const std::list<std::string>& appTypes, bool included, int retry, int limit, const std::string& owner, std::list<StableEventDTOGet>& results)
     {
-      // Two-step optimization since RETURNING is not reliably supported/usable via client
+      // Use atomic UPDATE ... RETURNING logic since client now supports result parsing
       if (appTypes.empty()) return;
 
-      // 1. Select Candidates
       std::string inClause = std::string(included ? "IN" : "NOT IN") + " (";
       for (size_t i = 0; i < appTypes.size(); i++) {
-          inClause += (i > 0) ? ",?" : "?";
+        inClause += (i > 0) ? ",?" : "?";
       }
       inClause += ")";
-      
-      std::string selectSql = "SELECT id, status, owner_id, patient_birth_date, patient_id, patient_name, patient_sex, accession_number, iuid, resource_id, resource_type, app_id, app_type, "
-                      "delay_sec, retry, failed_reason, next_scheduled_time, expiration_time, last_updated_time, creation_time "
-                        "FROM StableEventQueues "
-                        "WHERE "
-                        "("
-                          "(status='PENDING' AND (owner_id IS NULL OR owner_id=?) AND next_scheduled_time <= ?) "
-                          "OR "
-                          "(status='PROCESSING' AND expiration_time < ?) "
-                        ")"
-                        "AND app_type " + inClause + " "
-                        "AND retry <= ? "
-                        "ORDER BY retry ASC, creation_time ASC "
-                        "LIMIT ?";
 
-      rqlite::SQLStatement selectStmt;
-      selectStmt.sql = selectSql;
+      std::string expirationCase = "CASE app_type ";
+      const auto& durations = SaolaConfiguration::Instance().GetJobLockDurations();
+      for (size_t i = 0; i < durations.size(); i++) {
+          expirationCase += "WHEN ? THEN ? ";
+      }
+      expirationCase += "ELSE ? END";
+
+      std::string sql = "UPDATE StableEventQueues "
+                        "SET status='PROCESSING', owner_id=?, last_updated_time=?, expiration_time=" + expirationCase +
+                        " WHERE id IN ("
+                          " SELECT id FROM StableEventQueues "
+                          " WHERE "
+                          " ("
+                            " (status='PENDING' AND (owner_id IS NULL OR owner_id=?) AND next_scheduled_time <= ?) "
+                            " OR "
+                            " (status='PROCESSING' AND expiration_time < ?) "
+                          ")"
+                          " AND app_type " + inClause + " "
+                          " AND retry <= ? "
+                          " ORDER BY retry ASC, creation_time ASC "
+                          " LIMIT ?"
+                        ") "
+                        " RETURNING id, status, owner_id, patient_birth_date, patient_id, patient_name, patient_sex, accession_number, iuid, resource_id, resource_type, app_id, app_type, "
+                        " delay_sec, retry, failed_reason, next_scheduled_time, expiration_time, last_updated_time, creation_time";
+
+      rqlite::SQLStatement stmt;
+      stmt.sql = sql;
+
+      // Bind parameters
+      stmt.positionalParams.push_back(owner); // owner_id
+      stmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(0)); // last_updated_time
       
-      selectStmt.positionalParams.push_back(owner);
-      selectStmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(0));
-      selectStmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(0));
+      for (const auto& item : durations) {
+         stmt.positionalParams.push_back(item.first); // app_type
+         stmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(item.second)); // expiration_time
+      }
       
+      std::string defaultDurationStr = Saola::GetNextXSecondsFromNowInString(SaolaConfiguration::Instance().GetDefaultJobLockDuration());
+      stmt.positionalParams.push_back(defaultDurationStr); // expiration_time
+
+      stmt.positionalParams.push_back(owner); // owner_id
+      std::string nowStr = Saola::GetNextXSecondsFromNowInString(0);
+
+      stmt.positionalParams.push_back(nowStr); // last_updated_time
+      stmt.positionalParams.push_back(nowStr); // expiration_time
+
       for (const auto& appType : appTypes) {
-        selectStmt.positionalParams.push_back(appType);
+        stmt.positionalParams.push_back(appType); // app_type
+      }
+
+      stmt.positionalParams.push_back(retry); // retry
+      stmt.positionalParams.push_back(limit); // limit
+      
+      rqlite::SQLStatements stmts;
+      stmts.add(stmt);
+      
+      rqlite::ExecuteResponse execResp = rqliteClient_->execute(stmts);
+
+      // Here I want to check if execResp has error or empty results then return empty results
+      if (execResp.hasError() || execResp.results.empty() || execResp.results[0].values.empty())
+      {
+         return;
       }
       
-      selectStmt.positionalParams.push_back(retry);
-      selectStmt.positionalParams.push_back(limit);
-      
-      rqlite::SQLStatements selectStmts;
-      selectStmts.add(selectStmt);
-      
-      rqlite::QueryResponse selectResp = rqliteClient_->query(selectStmts);
-      
-      if (selectResp.hasError() || selectResp.results.empty() || selectResp.results[0].values.empty())
+      if (!execResp.hasError() && !execResp.results.empty())
       {
-        return; // No candidates
-      }
-      
-      std::vector<StableEventDTOGet> candidates;
-      for (const auto& row : selectResp.results[0].values)
-      {
-        candidates.push_back(RowToStableEventDTOGet(row));
-      }
-      
-      // 2. Try to claim them
-      rqlite::SQLStatements updateStmts;
-      for (const auto& candidate : candidates)
-      {
-          std::string updateSql = "UPDATE StableEventQueues "
-                      "SET status='PROCESSING', owner_id=?, last_updated_time=?, expiration_time=? "
-                      "WHERE id = ? AND "
-                        "("
-                          "(status='PENDING' AND (owner_id IS NULL OR owner_id=?) AND next_scheduled_time <= ?) "
-                          "OR "
-                          "(status='PROCESSING' AND expiration_time < ?) "
-                        ")";
-          
-          int lockDuration = SaolaConfiguration::Instance().GetJobLockDuration(candidate.app_type_);
-          
-          rqlite::SQLStatement stmt;
-          stmt.sql = updateSql;
-          stmt.positionalParams.push_back(owner);
-          stmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(0));
-          stmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(lockDuration)); // Claim dynamically
-          stmt.positionalParams.push_back(static_cast<int64_t>(candidate.id_)); // Use int64 for ID
-          
-          // Re-check conditions to ensure atomic claim
-          stmt.positionalParams.push_back(owner);
-          stmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(0));
-          stmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(0));
-          
-          updateStmts.add(stmt);
-      }
-      
-      rqlite::ExecuteResponse execResp = rqliteClient_->execute(updateStmts); // Should implement transactional batch if possible, or just batch
-      
-      if (!execResp.hasError())
-      {
-        size_t i = 0;
-        for (const auto& res : execResp.results)
-        {
-            if (i >= candidates.size()) break;
-            
-            if (res.rowsAffected > 0)
+         const auto& result = execResp.results[0];
+         if (!result.values.empty())
+         {
+            for (const auto& row : result.values)
             {
-                // Successfully claimed
-                int lockDuration = SaolaConfiguration::Instance().GetJobLockDuration(candidates[i].app_type_);
-                candidates[i].status_ = "PROCESSING";
-                candidates[i].owner_id_ = owner;
-                candidates[i].last_updated_time_ = Saola::GetNextXSecondsFromNowInString(0); // Approximate
-                candidates[i].expiration_time_ = Saola::GetNextXSecondsFromNowInString(lockDuration); // Approximate
-                results.push_back(candidates[i]);
+                results.push_back(RowToStableEventDTOGet(row));
             }
-            i++;
+         }
+      }
+
+      if (results.empty()) return;
+
+      // Update entry to increase retry by 1.
+      // This is to prevent infinite jobs running even if the job is running in other replicas (services in load balancing mode)
+      {
+        rqlite::SQLStatements updateStmts;
+        for (const auto& result : results)
+        {
+            std::string updateSql = "UPDATE StableEventQueues SET retry=? WHERE id=?";
+            
+            rqlite::SQLStatement stmt;
+            stmt.sql = updateSql;
+            stmt.positionalParams.push_back(result.retry_ + 1); // Use int64 for ID
+
+            // Re-check conditions to ensure atomic claim
+            stmt.positionalParams.push_back(result.id_);
+            updateStmts.add(stmt);
         }
+
+        rqliteClient_->execute(updateStmts); // Should implement transactional batch if possible, or just batch
       }
     }
 

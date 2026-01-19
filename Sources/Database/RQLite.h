@@ -429,6 +429,9 @@ namespace rqlite
     int64_t rowsAffected = 0;
     double time = 0.0;
     std::string error;
+    std::vector<std::string> columns;
+    std::vector<std::string> types;
+    std::vector<std::vector<Json::Value>> values;
 
     static ExecuteResult fromJson(const Json::Value &json)
     {
@@ -441,6 +444,37 @@ namespace rqlite
         result.time = json["time"].asDouble();
       if (json.isMember("error"))
         result.error = json["error"].asString();
+
+      // Support for RETURNING clause response in execute
+      if (json.isMember("columns") && json["columns"].isArray())
+      {
+        for (const auto &col : json["columns"])
+        {
+          result.columns.push_back(col.asString());
+        }
+      }
+
+      if (json.isMember("types") && json["types"].isArray())
+      {
+        for (const auto &type : json["types"])
+        {
+          result.types.push_back(type.asString());
+        }
+      }
+
+      if (json.isMember("values") && json["values"].isArray())
+      {
+        for (const auto &row : json["values"])
+        {
+          std::vector<Json::Value> rowValues;
+          for (const auto &val : row)
+          {
+            rowValues.push_back(val);
+          }
+          result.values.push_back(rowValues);
+        }
+      }
+
       return result;
     }
   };

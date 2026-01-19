@@ -209,17 +209,16 @@ namespace Saola
     if (ids.empty())
     {
       // Reset all events when no ids are specified
-      std::string sql = "UPDATE StableEventQueues SET failed_reason=?, retry=?, last_updated_time=?";
+      std::string sql = "UPDATE StableEventQueues SET status='PENDING', owner_id=NULL, failed_reason='Reset', retry=0, last_updated_time=?, next_scheduled_time=?, expiration_time=NULL";
       Orthanc::SQLite::Statement statement(db_, sql);
-      statement.BindString(0, "Reset");
-      statement.BindInt(1, 0);
-      statement.BindString(2, boost::posix_time::to_iso_string(Saola::GetNow()));
+      statement.BindString(0, Saola::GetNextXSecondsFromNowInString(0));
+      statement.BindString(1, Saola::GetNextXSecondsFromNowInString(0));
       statement.Run();
     }
     else
     {
       // Create SQL with placeholders for both update values and the IN clause
-      std::string sql = "UPDATE StableEventQueues SET failed_reason=?, retry=?, last_updated_time=? WHERE id IN (";
+      std::string sql = "UPDATE StableEventQueues SET status='PENDING', owner_id=NULL, failed_reason='Reset', retry=0, last_updated_time=?, next_scheduled_time=?, expiration_time=NULL WHERE id IN (";
       
       // Add the appropriate number of parameter placeholders for IDs
       for (size_t i = 0; i < ids.size(); i++)
@@ -233,9 +232,8 @@ namespace Saola
       
       // Bind the update field parameters first
       int paramIndex = 0;
-      statement.BindString(paramIndex++, "Reset");
-      statement.BindInt(paramIndex++, 0);
-      statement.BindString(paramIndex++, boost::posix_time::to_iso_string(Saola::GetNow()));
+      statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(0));
+      statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(0));
       
       // Then bind each ID for the IN clause
       for (const auto &id : ids)
@@ -533,46 +531,44 @@ namespace Saola
     expirationCase += "ELSE ? END";
 
     std::string sql = "UPDATE StableEventQueues "
-                      "SET status='PROCESSING', owner_id=?, last_updated_time=?, expiration_time=" + expirationCase + " "
-                      "WHERE id IN ("
-                        "SELECT id FROM StableEventQueues "
-                        "WHERE "
-                        "("
-                          "(status='PENDING' AND (owner_id IS NULL OR owner_id=?) AND next_scheduled_time <= ?) "
-                          "OR "
-                          "(status='PROCESSING' AND expiration_time < ?) "
+                      " SET status='PROCESSING', owner_id=?, last_updated_time=?, expiration_time=" + expirationCase + " "
+                      " WHERE id IN ("
+                        " SELECT id FROM StableEventQueues "
+                        " WHERE "
+                        " ("
+                          " (status='PENDING' AND (owner_id IS NULL OR owner_id=?) AND next_scheduled_time <= ?) "
+                          " OR "
+                          " (status='PROCESSING' AND expiration_time < ?) "
                         ")"
-                        "AND app_type " + inClause + " "
-                        "AND retry <= ? "
-                        "ORDER BY retry ASC, creation_time ASC "
-                        "LIMIT ?"
+                        " AND app_type " + inClause + " "
+                        " AND retry <= ? "
+                        " ORDER BY retry ASC, creation_time ASC "
+                        " LIMIT ?"
                       ") "
-                      "RETURNING id, status, owner_id, patient_birth_date, patient_id, patient_name, patient_sex, accession_number, iuid, resource_id, resource_type, app_id, app_type, "
-                      "delay_sec, retry, failed_reason, next_scheduled_time, expiration_time, last_updated_time, creation_time";
+                      " RETURNING id, status, owner_id, patient_birth_date, patient_id, patient_name, patient_sex, accession_number, iuid, resource_id, resource_type, app_id, app_type, "
+                      " delay_sec, retry, failed_reason, next_scheduled_time, expiration_time, last_updated_time, creation_time";
 
     Orthanc::SQLite::Statement statement(db_, sql);
-
     int paramIndex = 0;
-    
-    statement.BindString(paramIndex++, owner);
-    statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(0));
+    statement.BindString(paramIndex++, owner); // owner_id
+    statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(0)); // last_updated_time
     
     for (const auto& item : durations) {
-       statement.BindString(paramIndex++, item.first);
-       statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(item.second));
+       statement.BindString(paramIndex++, item.first); // app_type
+       statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(item.second)); // expiration_time
     }
-    statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(SaolaConfiguration::Instance().GetDefaultJobLockDuration()));
+    statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(SaolaConfiguration::Instance().GetDefaultJobLockDuration())); // expiration_time
 
-    statement.BindString(paramIndex++, owner);
-    statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(0));
-    statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(0));
+    statement.BindString(paramIndex++, owner); // owner_id
+    statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(0)); // last_updated_time
+    statement.BindString(paramIndex++, Saola::GetNextXSecondsFromNowInString(0)); // expiration_time
 
     for (const auto& appType : appTypes) {
-      statement.BindString(paramIndex++, appType);
+      statement.BindString(paramIndex++, appType); // app_type
     }
 
-    statement.BindInt(paramIndex++, retry);
-    statement.BindInt(paramIndex++, limit);
+    statement.BindInt(paramIndex++, retry); // retry
+    statement.BindInt(paramIndex++, limit); // limit
 
     while (statement.Step())
     {
@@ -597,8 +593,23 @@ namespace Saola
       result.expiration_time_ = statement.ColumnString(17);
       result.last_updated_time_ = statement.ColumnString(18);
       result.creation_time_ = statement.ColumnString(19);
-      
+
       results.push_back(result);
+    }
+
+    if (!results.empty())
+    {
+      // Update entry to increase retry by 1.
+      // This is to prevent infinite jobs running even if the job is running in other replicas (services in load balancing mode)
+      Orthanc::SQLite::Statement updateRetry(db_, "UPDATE StableEventQueues SET retry=? WHERE id=?");
+
+      for (const auto& result : results)
+      {
+        updateRetry.Reset();
+        updateRetry.BindInt(0, result.retry_ + 1);
+        updateRetry.BindInt64(1, result.id_);
+        updateRetry.Run();
+      }
     }
 
     transaction.Commit();
