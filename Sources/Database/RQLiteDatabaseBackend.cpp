@@ -518,11 +518,12 @@
 
     static TransferJobDTOGet RowToTransferJobDTOGet(const std::vector<Json::Value>& row)
     {
-      // Constructor: id, queue_id, last_updated_time, creation_time
-      return TransferJobDTOGet(row[0].asString(), 
-                                row[1].asInt64(), 
-                                row[2].asString(), 
-                                row[3].asString());
+      // Constructor: id, owner_id, queue_id, last_updated_time, creation_time
+      return TransferJobDTOGet(row[0].asString(),
+                                row[1].asString(), 
+                                row[2].asInt64(), 
+                                row[3].asString(), 
+                                row[4].asString());
     }
 
     void RQLiteDatabaseBackend::SaveTransferJob(const TransferJobDTOCreate& dto, TransferJobDTOGet& result)
@@ -532,16 +533,17 @@
       // Simplifying to upsert logic if possible, or just INSERT for new logic.
       // SQLite implementation does: Select by ID. If empty -> Insert. Else -> Update queue_id, last_updated_time.
       
-      std::string selectSql = "SELECT id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE id=?";
+      std::string selectSql = "SELECT id, owner_id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE id=?";
       rqlite::QueryResponse selectResp = rqliteClient_->querySingle(selectSql, dto.id_);
       
       bool exists = (!selectResp.hasError() && !selectResp.results.empty() && !selectResp.results[0].values.empty());
       
       if (!exists)
       {
-          std::string sql = "INSERT INTO TransferJobs (id, queue_id, last_updated_time, creation_time) VALUES(?, ?, ?, ?)";
+          std::string sql = "INSERT INTO TransferJobs (id, owner_id, queue_id, last_updated_time, creation_time) VALUES(?, ?, ?, ?, ?)";
           rqlite::ExecuteResponse resp = rqliteClient_->executeSingle(sql,
             dto.id_,
+            dto.owner_id_,
             static_cast<int64_t>(dto.queue_id_),
             boost::posix_time::to_iso_string(Saola::GetNow()),
             boost::posix_time::to_iso_string(Saola::GetNow())
@@ -557,8 +559,9 @@
       }
       else
       {
-          std::string sql = "UPDATE TransferJobs SET queue_id=?, last_updated_time=? WHERE id=?";
+          std::string sql = "UPDATE TransferJobs SET owner_id=?, queue_id=?, last_updated_time=? WHERE id=?";
           rqlite::ExecuteResponse resp = rqliteClient_->executeSingle(sql,
+            dto.owner_id_,
             static_cast<int64_t>(dto.queue_id_),
             boost::posix_time::to_iso_string(Saola::GetNow()),
             dto.id_
@@ -574,10 +577,11 @@
           // For simplicity/correctness we should technically read it, but Result object just needs to be valid.
           // SQLite impl: result.creation_time_ = existings.front().creation_time_;
           const auto& row = selectResp.results[0].values[0];
-          result.creation_time_ = row[3].asString();
+          result.creation_time_ = row[4].asString();
       }
       
       result.id_ = dto.id_;
+      result.owner_id_ = dto.owner_id_;
       result.queue_id_ = dto.queue_id_;
     }
 
@@ -645,7 +649,7 @@
 
     bool RQLiteDatabaseBackend::GetById(const std::string& id, TransferJobDTOGet& result)
     {
-      std::string sql = "SELECT id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE id=?";
+      std::string sql = "SELECT id, owner_id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE id=?";
       rqlite::QueryResponse resp = rqliteClient_->querySingle(sql, id);
       
       if (!resp.hasError() && !resp.results.empty() && !resp.results[0].values.empty())
@@ -658,7 +662,7 @@
 
     bool RQLiteDatabaseBackend::GetTransferJobsByByQueueId(int64_t id, std::list<TransferJobDTOGet>& results)
     {
-      std::string sql = "SELECT id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE queue_id=?";
+      std::string sql = "SELECT id, owner_id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE queue_id=?";
       rqlite::QueryResponse resp = rqliteClient_->querySingle(sql, static_cast<int64_t>(id));
       
       if (!resp.hasError() && !resp.results.empty())
@@ -676,7 +680,7 @@
     {
       if (ids.empty()) return false;
       
-      std::string sql = "SELECT id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE queue_id IN (";
+      std::string sql = "SELECT id, owner_id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE queue_id IN (";
       for (size_t i = 0; i < ids.size(); i++) {
           sql += (i > 0) ? ",?" : "?";
       }

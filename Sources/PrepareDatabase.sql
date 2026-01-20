@@ -23,6 +23,7 @@ CREATE TABLE StableEventQueues(
 
 CREATE TABLE TransferJobs(
   id TEXT PRIMARY KEY,
+  owner_id VARCHAR(100),
   queue_id INTEGER REFERENCES StableEventQueues(id),
   last_updated_time TEXT,
   creation_time TEXT

@@ -404,7 +404,7 @@ static bool ProcessAsyncTask(const AppConfiguration &appConfig, StableEventDTOGe
     TransferJobDTOGet result;
     if (dto.id_ >= 0)
     {
-      SaolaDatabase::Instance().SaveTransferJob(TransferJobDTOCreate(jobResponse["ID"].asString(), dto.id_), result);
+      SaolaDatabase::Instance().SaveTransferJob(TransferJobDTOCreate(jobResponse["ID"].asString(), SaolaConfiguration::Instance().GetDataBaseServerIdentifier(), dto.id_), result);
       if (dto.retry_ > 0)
       {
         std::string now = Saola::GetNextXSecondsFromNowInString(0);
@@ -596,7 +596,7 @@ void StableEventScheduler::Start()
     {
       LOG(TRACE) << "[StableEventScheduler::MonitorDatabase] Start monitoring Ris/StoreServer tasks ...";
       std::list<StableEventDTOGet> results;
-      SaolaDatabase::Instance().Dequeue(FIRST_PRIORITY_APP_TYPES, true, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), "orthanc1", results);
+      SaolaDatabase::Instance().Dequeue(FIRST_PRIORITY_APP_TYPES, true, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), SaolaConfiguration::Instance().GetDataBaseServerIdentifier(), results);
       LOG(INFO) << "[StableEventScheduler::MonitorDatabase] Found " << results.size() << " tasks to process";
       MonitorTasks(results);
       for (int i = 0; i < 10; i++)
@@ -614,12 +614,12 @@ void StableEventScheduler::Start()
       {
         if (InMemoryJobCache::Instance().GetSize() < SaolaConfiguration::Instance().GetInMemJobCacheLimit())
         {
-          SaolaDatabase::Instance().Dequeue(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), "orthanc1", results);
+          SaolaDatabase::Instance().Dequeue(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), SaolaConfiguration::Instance().GetDataBaseServerIdentifier(), results);
         }
       }
       else
       {
-        SaolaDatabase::Instance().Dequeue(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), "orthanc1", results);
+        SaolaDatabase::Instance().Dequeue(FIRST_PRIORITY_APP_TYPES, false, SaolaConfiguration::Instance().GetMaxRetry(), SaolaConfiguration::Instance().GetQueryLimit(), SaolaConfiguration::Instance().GetDataBaseServerIdentifier(), results);
       }
 
       MonitorTasks(results);

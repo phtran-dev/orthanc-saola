@@ -623,22 +623,23 @@ namespace Saola
 
     std::list<TransferJobDTOGet> existings;
     {
-      Orthanc::SQLite::Statement statement(db_, "SELECT id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE id=? LIMIT 1");
+      Orthanc::SQLite::Statement statement(db_, "SELECT id, owner_id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE id=? LIMIT 1");
       statement.BindString(0, dto.id_);
       while (statement.Step())
       {
-        TransferJobDTOGet r(statement.ColumnString(0), statement.ColumnInt64(1), statement.ColumnString(2), statement.ColumnString(3));
+        TransferJobDTOGet r(statement.ColumnString(0), statement.ColumnString(1), statement.ColumnInt64(2), statement.ColumnString(3), statement.ColumnString(4));
 
         existings.push_back(r);
       }
     }
     if (existings.empty())
     {
-      Orthanc::SQLite::Statement statement(db_, "INSERT INTO TransferJobs (id, queue_id, last_updated_time, creation_time) VALUES(?, ?, ?, ?)");
+      Orthanc::SQLite::Statement statement(db_, "INSERT INTO TransferJobs (id, owner_id, queue_id, last_updated_time, creation_time) VALUES(?, ?, ?, ?, ?)");
       statement.BindString(0, dto.id_);
-      statement.BindInt64(1, dto.queue_id_);
-      statement.BindString(2, boost::posix_time::to_iso_string(Saola::GetNow()));
+      statement.BindString(1, dto.owner_id_);
+      statement.BindInt64(2, dto.queue_id_);
       statement.BindString(3, boost::posix_time::to_iso_string(Saola::GetNow()));
+      statement.BindString(4, boost::posix_time::to_iso_string(Saola::GetNow()));
       statement.Run();
 
       result.last_updated_time_ = boost::posix_time::to_iso_string(Saola::GetNow());
@@ -646,10 +647,11 @@ namespace Saola
     }
     else
     {
-      Orthanc::SQLite::Statement statement(db_, "UPDATE TransferJobs SET queue_id=?, last_updated_time=? WHERE id=?");
-      statement.BindInt64(0,  dto.queue_id_);
-      statement.BindString(1, boost::posix_time::to_iso_string(Saola::GetNow()));
-      statement.BindString(2, dto.id_);
+      Orthanc::SQLite::Statement statement(db_, "UPDATE TransferJobs SET owner_id=?, queue_id=?, last_updated_time=? WHERE id=?");
+      statement.BindString(0, dto.owner_id_);
+      statement.BindInt64(1,  dto.queue_id_);
+      statement.BindString(2, boost::posix_time::to_iso_string(Saola::GetNow()));
+      statement.BindString(3, dto.id_);
       statement.Run();
 
       result.last_updated_time_ = boost::posix_time::to_iso_string(Saola::GetNow());
@@ -659,6 +661,7 @@ namespace Saola
     transaction.Commit();
 
     result.id_ = dto.id_;
+    result.owner_id_ = dto.owner_id_;
   }
 
   bool SQLiteDatabaseBackend::ResetFailedJob(const std::list<std::string>& ids)
@@ -735,15 +738,16 @@ namespace Saola
     Orthanc::SQLite::Transaction transaction(db_);
     transaction.Begin();
 
-    Orthanc::SQLite::Statement statement(db_, "SELECT id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE id = ?");
+    Orthanc::SQLite::Statement statement(db_, "SELECT id, owner_id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE id = ?");
     statement.BindString(0, id);
     bool ok = false;
     while (statement.Step())
     {
       result.id_ = statement.ColumnString(0);
-      result.queue_id_ = statement.ColumnInt64(1);
-      result.last_updated_time_ = statement.ColumnString(2);
-      result.creation_time_ = statement.ColumnString(3);
+      result.owner_id_ = statement.ColumnString(1);
+      result.queue_id_ = statement.ColumnInt64(2);
+      result.last_updated_time_ = statement.ColumnString(3);
+      result.creation_time_ = statement.ColumnString(4);
       ok = true;
     }
 
@@ -757,16 +761,17 @@ namespace Saola
     Orthanc::SQLite::Transaction transaction(db_);
     transaction.Begin();
 
-    Orthanc::SQLite::Statement statement(db_, "SELECT id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE queue_id=?");
+    Orthanc::SQLite::Statement statement(db_, "SELECT id, owner_id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE queue_id=?");
     statement.BindInt64(0, id);
     bool ok = false;
     while (statement.Step())
     {
       TransferJobDTOGet result;
       result.id_ = statement.ColumnString(0);
-      result.queue_id_ = statement.ColumnInt64(1);
-      result.last_updated_time_ = statement.ColumnString(2);
-      result.creation_time_ = statement.ColumnString(3);
+      result.owner_id_ = statement.ColumnString(1);
+      result.queue_id_ = statement.ColumnInt64(2);
+      result.last_updated_time_ = statement.ColumnString(3);
+      result.creation_time_ = statement.ColumnString(4);
       results.push_back(result);
       ok = true;
     }
@@ -781,7 +786,7 @@ namespace Saola
     Orthanc::SQLite::Transaction transaction(db_);
     transaction.Begin();
 
-    std::string query = "SELECT id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE queue_id IN (";
+    std::string query = "SELECT id, owner_id, queue_id, last_updated_time, creation_time FROM TransferJobs WHERE queue_id IN (";
     std::string placeholders;
     for (size_t i = 0; i < ids.size(); i++) {
       if (i > 0) placeholders += ",";
@@ -801,9 +806,10 @@ namespace Saola
     {
       TransferJobDTOGet result;
       result.id_ = statement.ColumnString(0);
-      result.queue_id_ = statement.ColumnInt64(1);
-      result.last_updated_time_ = statement.ColumnString(2);
-      result.creation_time_ = statement.ColumnString(3);
+      result.owner_id_ = statement.ColumnString(1);
+      result.queue_id_ = statement.ColumnInt64(2);
+      result.last_updated_time_ = statement.ColumnString(3);
+      result.creation_time_ = statement.ColumnString(4);
       results.push_back(result);
       ok = true;
     }
