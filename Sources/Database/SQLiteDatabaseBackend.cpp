@@ -349,7 +349,7 @@ namespace Saola
     return ok;
   }
 
-  void SQLiteDatabaseBackend::FindAll(const Pagination& page, std::list<StableEventDTOGet>& results)
+  void SQLiteDatabaseBackend::FindAll(const Pagination& page, const StableEventQueuesFilter& filter, std::list<StableEventDTOGet>& results)
   {
     boost::mutex::scoped_lock lock(mutex_);
     Orthanc::SQLite::Transaction transaction(db_);
@@ -366,12 +366,46 @@ namespace Saola
 
     std::string sql = "SELECT id, status, owner_id, patient_birth_date, patient_id, patient_name, patient_sex, accession_number, iuid, resource_id, resource_type, app_id, app_type, "
                       "delay_sec, retry, failed_reason, next_scheduled_time, expiration_time, last_updated_time, creation_time "
-                      "FROM StableEventQueues ORDER BY " + sortBy + " LIMIT ? OFFSET ?";
+                      "FROM StableEventQueues ";
+    
+    std::vector<std::string> conditions;
+    if (!filter.patient_name_.empty()) {
+      conditions.push_back("patient_name LIKE ?");
+    }
+    if (!filter.patient_id_.empty()) {
+      conditions.push_back("patient_id = ?");
+    }
+    if (!filter.accession_number_.empty()) {
+      conditions.push_back("accession_number = ?");
+    }
+    if (!filter.owner_id_.empty()) {
+      conditions.push_back("owner_id = ?");
+    }
+
+    if (!conditions.empty()) {
+      sql += "WHERE " + boost::algorithm::join(conditions, " AND ") + " ";
+    }
+
+    sql += "ORDER BY " + sortBy + " LIMIT ? OFFSET ?";
 
     Orthanc::SQLite::Statement statement(db_, sql);
     
-    statement.BindInt(0, page.limit_);
-    statement.BindInt64(1, page.offset_);
+    int paramIndex = 0;
+    if (!filter.patient_name_.empty()) {
+      statement.BindString(paramIndex++, "%" + filter.patient_name_ + "%");
+    }
+    if (!filter.patient_id_.empty()) {
+      statement.BindString(paramIndex++, filter.patient_id_);
+    }
+    if (!filter.accession_number_.empty()) {
+      statement.BindString(paramIndex++, filter.accession_number_);
+    }
+    if (!filter.owner_id_.empty()) {
+      statement.BindString(paramIndex++, filter.owner_id_);
+    }
+
+    statement.BindInt(paramIndex++, page.limit_);
+    statement.BindInt64(paramIndex++, page.offset_);
 
     while (statement.Step())
     {

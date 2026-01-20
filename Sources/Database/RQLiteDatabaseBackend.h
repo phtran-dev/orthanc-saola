@@ -24,7 +24,7 @@ namespace Saola
 
     virtual bool GetByIds(const std::list<int64_t>& ids, std::list<StableEventDTOGet>& results) override;
 
-    virtual void FindAll(const Pagination& page, std::list<StableEventDTOGet>& results) override;
+    virtual void FindAll(const Pagination& page, const StableEventQueuesFilter& filter, std::list<StableEventDTOGet>& results) override;
 
     virtual void FindByRetryLessThan(int retry, std::list<StableEventDTOGet>& results) override;
 

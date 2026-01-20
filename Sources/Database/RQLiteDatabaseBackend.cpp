@@ -4,6 +4,7 @@
   #include <Logging.h>
   #include <OrthancException.h>
   #include <boost/algorithm/string/predicate.hpp>
+  #include <boost/algorithm/string/join.hpp>
   #include "../TimeUtil.h"
 
   namespace Saola
@@ -220,7 +221,7 @@
         std::string sql = "UPDATE StableEventQueues SET status='PENDING', owner_id=NULL, failed_reason='Reset', retry=0, last_updated_time=?, next_scheduled_time=?, expiration_time=NULL";
         rqlite::ExecuteResponse resp = rqliteClient_->executeSingle(sql,
           Saola::GetNextXSecondsFromNowInString(0),
-          Saola::GetNextXSecondsFromNowInString(90)
+          Saola::GetNextXSecondsFromNowInString(0)
         );
         return !resp.hasError();
       }
@@ -234,7 +235,7 @@
         
         rqlite::SQLStatement stmt(sql);
         stmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(0));
-        stmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(90));
+        stmt.positionalParams.push_back(Saola::GetNextXSecondsFromNowInString(0));
         
         for (const auto& id : ids)
         {
@@ -325,7 +326,7 @@
       return false;
     }
 
-    void RQLiteDatabaseBackend::FindAll(const Pagination& page, std::list<StableEventDTOGet>& results)
+    void RQLiteDatabaseBackend::FindAll(const Pagination& page, const StableEventQueuesFilter& filter, std::list<StableEventDTOGet>& results)
     {
       // Note: Sorting logic similar to SQLite backend, but need to be careful with column validation
       std::set<std::string> validColumns = {"id", "iuid", "resource_id", "resource_type", 
@@ -339,9 +340,52 @@
 
       std::string sql = "SELECT id, status, owner_id, patient_birth_date, patient_id, patient_name, patient_sex, accession_number, iuid, resource_id, resource_type, app_id, app_type, "
                         "delay_sec, retry, failed_reason, next_scheduled_time, expiration_time, last_updated_time, creation_time "
-                        "FROM StableEventQueues ORDER BY " + sortBy + " LIMIT ? OFFSET ?";
+                        "FROM StableEventQueues ";
 
-      rqlite::QueryResponse resp = rqliteClient_->querySingle(sql, page.limit_, static_cast<int64_t>(page.offset_));
+      std::vector<std::string> conditions;
+      // Note: RQLite/SQLite usually support LIKE properly.
+      if (!filter.patient_name_.empty()) {
+        conditions.push_back("patient_name LIKE ?");
+      }
+      if (!filter.patient_id_.empty()) {
+        conditions.push_back("patient_id = ?");
+      }
+      if (!filter.accession_number_.empty()) {
+        conditions.push_back("accession_number = ?");
+      }
+      if (!filter.owner_id_.empty()) {
+        conditions.push_back("owner_id = ?");
+      }
+
+      if (!conditions.empty()) {
+        sql += "WHERE " + boost::algorithm::join(conditions, " AND ") + " ";
+      }
+
+      sql += "ORDER BY " + sortBy + " LIMIT ? OFFSET ?";
+
+      rqlite::SQLStatement stmt;
+      stmt.sql = sql;
+
+      if (!filter.patient_name_.empty()) {
+        stmt.positionalParams.push_back("%" + filter.patient_name_ + "%");
+      }
+      if (!filter.patient_id_.empty()) {
+        stmt.positionalParams.push_back(filter.patient_id_);
+      }
+      if (!filter.accession_number_.empty()) {
+        stmt.positionalParams.push_back(filter.accession_number_);
+      }
+      if (!filter.owner_id_.empty()) {
+        stmt.positionalParams.push_back(filter.owner_id_);
+      }
+
+      stmt.positionalParams.push_back(page.limit_);
+      stmt.positionalParams.push_back(static_cast<int64_t>(page.offset_));
+
+      rqlite::SQLStatements stmts;
+      stmts.add(stmt);
+
+      rqlite::QueryResponse resp = rqliteClient_->query(stmts);
       if (!resp.hasError() && !resp.results.empty())
       {
         for (const auto& row : resp.results[0].values)

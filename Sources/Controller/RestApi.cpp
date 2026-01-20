@@ -4,6 +4,7 @@
 #include "../SaolaDatabase.h"
 
 #include "../DTO/StableEventDTOUpdate.h"
+#include "../DTO/StableEventQueuesFilter.h"
 #include "../Scheduler/StableEventScheduler.h"
 
 #include "../Job/ExporterJob.h"
@@ -359,6 +360,7 @@ static void GetStableEvents(OrthancPluginRestOutput *output,
   }
 
   Pagination page;
+  StableEventQueuesFilter filter;
   for (uint32_t i = 0; i < request->getCount; i++)
   {
     std::string key(request->getKeys[i]);
@@ -371,10 +373,26 @@ static void GetStableEvents(OrthancPluginRestOutput *output,
     {
       page.offset_ = boost::lexical_cast<unsigned int>(value);
     }
+    else if (key == "patientName")
+    {
+      filter.patient_name_ = value;
+    }
+    else if (key == "patientId")
+    {
+      filter.patient_id_ = value;
+    }
+    else if (key == "accessionNumber")
+    {
+      filter.accession_number_ = value;
+    }
+    else if (key == "ownerId")
+    {
+      filter.owner_id_ = value;
+    }
   }
 
   std::list<StableEventDTOGet> events;
-  SaolaDatabase::Instance().FindAll(page, events);
+  SaolaDatabase::Instance().FindAll(page, filter, events);
   Json::Value answer = Json::objectValue;
   answer["databaseIdentifier"] = SaolaConfiguration::Instance().GetDataBaseServerIdentifier();
   answer["events"] = Json::arrayValue;

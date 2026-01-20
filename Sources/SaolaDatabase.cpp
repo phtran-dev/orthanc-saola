@@ -96,11 +96,11 @@ bool SaolaDatabase::GetByIds(const std::list<int64_t> &ids, std::list<StableEven
   return false;
 }
 
-void SaolaDatabase::FindAll(const Pagination &page, std::list<StableEventDTOGet> &results)
+void SaolaDatabase::FindAll(const Pagination &page, const StableEventQueuesFilter &filter, std::list<StableEventDTOGet> &results)
 {
   if (backend_)
   {
-    backend_->FindAll(page, results);
+    backend_->FindAll(page, filter, results);
   }
 }
 

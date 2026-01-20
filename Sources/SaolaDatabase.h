@@ -3,6 +3,7 @@
 #include "DTO/StableEventDTOCreate.h"
 #include "DTO/StableEventDTOUpdate.h"
 #include "DTO/StableEventDTOGet.h"
+#include "DTO/StableEventQueuesFilter.h"
 
 #include "DTO/TransferJobDTOCreate.h"
 #include "DTO/TransferJobDTOGet.h"
@@ -55,7 +56,7 @@ public:
 
   bool GetByIds(const std::list<int64_t>& ids, std::list<StableEventDTOGet>& results);
 
-  void FindAll(const Pagination& page, std::list<StableEventDTOGet>& results);
+  void FindAll(const Pagination& page, const StableEventQueuesFilter& filter, std::list<StableEventDTOGet>& results);
 
   void FindByRetryLessThan(int retry, std::list<StableEventDTOGet>& results);
 
