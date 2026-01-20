@@ -251,7 +251,7 @@ static void GetCreateAppConfigurations(OrthancPluginRestOutput *output,
   }
 }
 
-static void GetDeleteAppConfiguration(OrthancPluginRestOutput *output,
+static void GetDeleteUpdateAppConfiguration(OrthancPluginRestOutput *output,
                                       const char *url,
                                       const OrthancPluginHttpRequest *request)
 {
@@ -259,7 +259,7 @@ static void GetDeleteAppConfiguration(OrthancPluginRestOutput *output,
 
   std::string appId{request->groups[0]};
 
-  LOG(INFO) << "[GetDeleteAppConfiguration] appId: " << appId;
+  LOG(INFO) << "[GetDeleteUpdateAppConfiguration] appId: " << appId;
 
   if (request->method == OrthancPluginHttpMethod_Get)
   {
@@ -271,6 +271,23 @@ static void GetDeleteAppConfiguration(OrthancPluginRestOutput *output,
   else if (request->method == OrthancPluginHttpMethod_Delete)
   {
     Saola::AppConfigRepository::Instance().Delete(appId);
+    std::string s = "{}";
+    OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
+  }
+  else if (request->method == OrthancPluginHttpMethod_Put)
+  {
+    Json::Value appConfig;
+    OrthancPlugins::ReadJson(appConfig, request->body, request->bodySize);
+
+    if (appConfig.empty() || !appConfig.isObject())
+    {
+      OrthancPluginSendHttpStatusCode(context, output, 400);
+      return;
+    }
+    
+    appConfig["Id"] = appId; // Ensure ID consistency
+    Saola::AppConfigRepository::Instance().Save(AppConfiguration(appConfig));
+
     std::string s = "{}";
     OrthancPluginAnswerBuffer(context, output, s.c_str(), s.size(), "application/json");
   }
@@ -1320,7 +1337,7 @@ void RegisterRestEndpoint()
 {
   OrthancPlugins::RegisterRestCallback<GetPluginConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/configuration", true);
   OrthancPlugins::RegisterRestCallback<GetCreateAppConfigurations>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/appconfigurations", true);
-  OrthancPlugins::RegisterRestCallback<GetDeleteAppConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/appconfigurations/([^/]*)", true);
+  OrthancPlugins::RegisterRestCallback<GetDeleteUpdateAppConfiguration>(SaolaConfiguration::Instance().GetRoot() + ORTHANC_PLUGIN_NAME + "/appconfigurations/([^/]*)", true);
 
   OrthancPlugins::RegisterRestCallback<HandleStableEvents>(SaolaConfiguration::Instance().GetRoot() + "event-queues", true);
   OrthancPlugins::RegisterRestCallback<DeleteStableEvents>(SaolaConfiguration::Instance().GetRoot() + "delete-event-queues", true);
