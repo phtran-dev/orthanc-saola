@@ -6,6 +6,7 @@ struct TransferJobDTOCreate
 {
   /* data */
   std::string id_;
+
   std::string owner_id_;
 
   int64_t queue_id_;
