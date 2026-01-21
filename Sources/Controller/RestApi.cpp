@@ -195,28 +195,28 @@ static void SaveAppConfiguration(OrthancPluginRestOutput *output,
       }
 
     */
-    for (auto key : {"FieldValues", "FieldMapping"})
-    {
-      if (appConfig.isMember(key))
-      {
-        if (appConfig[key].isNull() || appConfig[key].empty() || !appConfig[key].isArray())
-        {
-          LOG(ERROR) << "[ApplyPluginConfiguration] ERROR Invalid request, appConfig[\"" + std::string(key) + "\"] is null or empty or not Array type";
-          OrthancPluginSendHttpStatusCode(context, output, 400);
-          return;
-        }
+    // for (auto key : {"FieldValues", "FieldMapping"})
+    // {
+    //   if (appConfig.isMember(key))
+    //   {
+    //     if (appConfig[key].isNull() || appConfig[key].empty() || !appConfig[key].isArray())
+    //     {
+    //       LOG(ERROR) << "[ApplyPluginConfiguration] ERROR Invalid request, appConfig[\"" + std::string(key) + "\"] is null or empty or not Array type";
+    //       OrthancPluginSendHttpStatusCode(context, output, 400);
+    //       return;
+    //     }
 
-        for (const auto &value : appConfig[key])
-        {
-          if (!value.isObject() || value.size() != 1)
-          {
-            LOG(ERROR) << "[ApplyPluginConfiguration] ERROR Invalid request, values in appConfig[\"" + std::string(key) + "\"] is not (Key, Value) type: " << value.toStyledString();
-            OrthancPluginSendHttpStatusCode(context, output, 400);
-            return;
-          }
-        }
-      }
-    }
+    //     for (const auto &value : appConfig[key])
+    //     {
+    //       if (!value.isObject() || value.size() != 1)
+    //       {
+    //         LOG(ERROR) << "[ApplyPluginConfiguration] ERROR Invalid request, values in appConfig[\"" + std::string(key) + "\"] is not (Key, Value) type: " << value.toStyledString();
+    //         OrthancPluginSendHttpStatusCode(context, output, 400);
+    //         return;
+    //       }
+    //     }
+    //   }
+    // }
   }
 
   for (const auto& config : appConfigs)
