@@ -32,6 +32,7 @@ namespace Saola
     boost::shared_ptr<ArchiveIndex> archive_;
     bool enableExtendedSopClass_ = false;
     std::string description_;
+    std::string content_;
 
     boost::shared_ptr<DirectoryWriterIterator> writer_;
     size_t currentStep_ = 0;
@@ -53,7 +54,7 @@ namespace Saola
                 const std::string& rootDir,
                 Orthanc::ResourceType jobLevel);
 
-    virtual ~ExporterJob();
+
 
     void SetDescription(const std::string &description);
 
@@ -68,12 +69,16 @@ namespace Saola
 
     void SetLoaderThreads(unsigned int loaderThreads);
 
-    virtual void Reset() override;
+    const std::string &GetContent() const;
 
     void Start();
+
+    virtual void Reset() override;
 
     virtual OrthancPluginJobStepStatus Step() override;
 
     virtual void Stop(OrthancPluginJobStopReason reason);
+
+    virtual ~ExporterJob();
   };
 } // End of namespace Saola

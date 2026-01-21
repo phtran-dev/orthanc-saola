@@ -16,6 +16,7 @@
 
 #include <boost/filesystem.hpp>
 
+
 #if defined(_MSC_VER)
 #define snprintf _snprintf
 #endif
@@ -62,23 +63,6 @@ namespace Saola
     {
       if (transcode_)
       {
-        // std::set<Orthanc::DicomTransferSyntax> syntaxes;
-        // syntaxes.insert(transferSyntax_);
-
-        // IDicomTranscoder::DicomImage source, transcoded;
-        // source.SetExternalBuffer(sourceBuffer);
-
-        // if (context_.Transcode(transcoded, source, syntaxes, true /* allow new SOP instance UID */))
-        // {
-        //   transcodedBuffer.assign(reinterpret_cast<const char*>(transcoded.GetBufferData()), transcoded.GetBufferSize());
-        //   return true;
-        // }
-        // else
-        // {
-        //   LOG(INFO) << "Cannot transcode instance " << instanceId
-        //             << " to transfer syntax: " << GetTransferSyntaxUid(transferSyntax_);
-        // }
-
         LOG(INFO) << "InstanceLoader::TranscodeDicom instanceId = " << instanceId << ", transferSyntax = "  << Orthanc::GetTransferSyntaxUid(this->transferSyntax_);
         std::unique_ptr<OrthancPlugins::DicomInstance> transcoded(
           OrthancPlugins::DicomInstance::Transcode(
@@ -495,15 +479,13 @@ namespace Saola
 
     ~ArchiveIndex()
     {
-      for (Resources::iterator it = resources_.begin();
-           it != resources_.end(); ++it)
+      for (Resources::iterator it = resources_.begin(); it != resources_.end(); ++it)
       {
         delete it->second;
       }
     }
 
-    void Add(PluginIndex &index,
-             const ResourceIdentifiers &resource)
+    void Add(PluginIndex &index, const ResourceIdentifiers &resource)
     {
       const std::string &id = resource.GetIdentifier(GetResourceIdType(level_));
       Resources::iterator previous = resources_.find(id);
@@ -828,7 +810,13 @@ namespace Saola
       // char filename[24];
       // snprintf(filename, sizeof(filename) - 1, instanceFormat_, counter_);
       counter_++;
-      commands_.AddWriteInstance(instanceId + ".dcm", instanceId, uncompressedSize);
+      // Just get the file name instead of full path
+      // commands_.AddWriteInstance(instanceId + ".dcm", instanceId, uncompressedSize); --> Do not use this
+      // instanceId is formated in either:
+      // - orthanc://instanceId
+      // - file:///path/to/file.dcm
+      // Hence using booost::fielsystem::path(instanceId).filename().string() to get the file name
+      commands_.AddWriteInstance(boost::filesystem::path(instanceId).filename().string(), instanceId, uncompressedSize); // --> Use this instead
     }
   };
 
@@ -954,6 +942,7 @@ namespace Saola
     archive_->Add(PluginIndex::Instance(), *resourceIdentifiers_);
   }
 
+
   void ExporterJob::SetTranscode(Orthanc::DicomTransferSyntax transferSyntax)
   {
     if (writer_.get() != NULL) // Already started
@@ -1073,6 +1062,7 @@ namespace Saola
         value[KEY_RESOURCES].append(resource);
       }
       UpdateContent(value);
+      this->content_ = value.toStyledString();
       LOG(INFO) << "[ExporterJob::FinalizeTarget] Content updated";
     }
   }
@@ -1126,5 +1116,10 @@ namespace Saola
 
   void ExporterJob::Stop(OrthancPluginJobStopReason reason)
   {
+  }
+
+  const std::string &ExporterJob::GetContent() const
+  {
+    return this->content_;
   }
 }

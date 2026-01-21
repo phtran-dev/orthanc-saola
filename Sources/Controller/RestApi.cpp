@@ -610,7 +610,6 @@ void UpdateTransferJobs(OrthancPluginRestOutput *output,
 }
 
 
-#include <boost/filesystem.hpp>
 void ExportSingleResource(OrthancPluginRestOutput *output,
                           const char *url,
                           const OrthancPluginHttpRequest *request)
@@ -627,11 +626,10 @@ void ExportSingleResource(OrthancPluginRestOutput *output,
 
   if (!requestBody.isMember("ID") && !requestBody.isMember("StudyInstanceUID") && !requestBody.isMember("SeriesInstanceUID"))
   {
-      // Missing params
-      LOG(WARNING) << "[ExportSingleResource] Missing params : ID, StudyInstanceUID, SeriesInstanceUID";
-      return OrthancPluginSendHttpStatusCode(context, output, 400);
+    // Missing params
+    LOG(WARNING) << "[ExportSingleResource] Missing params : ID, StudyInstanceUID, SeriesInstanceUID";
+    return OrthancPluginSendHttpStatusCode(context, output, 400);
   }
-
 
   std::string exportDirectory = requestBody["ExportDir"].asString();
   std::string resource = requestBody["Level"].asString();
@@ -685,11 +683,53 @@ void ExportSingleResource(OrthancPluginRestOutput *output,
 
   job->SetDescription("Export Single Resource to directory");
 
-  // boost::shared_ptr<Orthanc::SharedMessageQueue> queue(new Orthanc::SharedMessageQueue);
+  if (requestBody.isMember("UseJobEngine") && requestBody["UseJobEngine"].asBool())
+  {
+    return OrthancPlugins::OrthancJob::SubmitFromRestApiPost(output, requestBody, job.release());
+  }
 
-  LOG(INFO) << "[ExportSingleResource] Submitting job to Orthanc";
-  OrthancPlugins::OrthancJob::SubmitFromRestApiPost(output, requestBody, job.release());
-  LOG(INFO) << "[ExportSingleResource] Job submitted successfully";
+
+  LOG(INFO) << "[ExportSingleResource] Starting manual job execution";
+  
+  try
+  {
+    // Execute all steps until completion
+    // Note: Do NOT call job->Start() manually - Step() handles initialization automatically
+    OrthancPluginJobStepStatus status = OrthancPluginJobStepStatus_Continue;
+    int stepCount = 0;
+    
+    while (status == OrthancPluginJobStepStatus_Continue)
+    {
+      status = job->Step();
+      stepCount++;
+      
+      if (stepCount % 100 == 0)
+      {
+        LOG(INFO) << "[ExportSingleResource] Processed " << stepCount << " steps";
+      }
+    }
+    
+    if (status == OrthancPluginJobStepStatus_Success)
+    {
+      LOG(INFO) << "[ExportSingleResource] Job completed successfully after " << stepCount << " steps";
+      OrthancPluginAnswerBuffer(context, output, job->GetContent().c_str(), job->GetContent().size(), "application/json");
+    }
+    else
+    {
+      LOG(ERROR) << "[ExportSingleResource] Job failed with status: " << status;
+      OrthancPluginSendHttpStatusCode(context, output, 500);
+    }
+  }
+  catch (const Orthanc::OrthancException& e)
+  {
+    LOG(ERROR) << "[ExportSingleResource] Exception during job execution: " << e.What();
+    OrthancPluginSendHttpStatusCode(context, output, 500);
+  }
+  catch (const std::exception& e)
+  {
+    LOG(ERROR) << "[ExportSingleResource] Standard exception during job execution: " << e.what();
+    OrthancPluginSendHttpStatusCode(context, output, 500);
+  }
 
 /*
   Json::Value studyResource;
